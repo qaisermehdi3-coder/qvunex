@@ -9,7 +9,7 @@ the bill doubles, they can't say why.
 This tells you.
 
 ```bash
-pip install qvunex
+pip install git+https://github.com/qaisermehdi3-coder/qvunex
 ```
 
 ```python
