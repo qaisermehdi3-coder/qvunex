@@ -12,6 +12,14 @@ This tells you.
 pip install qvunex
 ```
 
+See what it does in 30 seconds, without touching your code:
+
+```bash
+qvunex demo
+```
+
+That runs a synthetic workload and prints the full report — no integration, nothing to configure. When you want it on your own code:
+
 ```python
 from qvunex import meter
 
