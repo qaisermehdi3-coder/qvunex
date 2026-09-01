@@ -110,6 +110,30 @@ Full field list and the evidence behind each one:
 
 ---
 
+## Measure your own GPU
+
+The sweep that produced those numbers is in this repo, as one file with no setup:
+
+```bash
+pip install vllm
+python benchmarks/sweep.py
+```
+
+It runs each configuration in a fresh process, disables prefix caching, gives every prompt a unique prefix, and pins output length so every run does identical work. You get a CSV containing the result and every condition that produced it, in the same row.
+
+To compare two builds of the same weights:
+
+```bash
+python benchmarks/sweep.py \
+    --model Qwen/Qwen2.5-1.5B-Instruct \
+    --compare-model Qwen/Qwen2.5-1.5B-Instruct-AWQ \
+    --compare-quantization awq
+```
+
+If you run it, send the CSV. Measurements across different hardware are the one thing nobody can collect alone.
+
+---
+
 ## Design choices, and why
 
 **Local only.** Every measurement is appended to a JSONL file on your own disk.
