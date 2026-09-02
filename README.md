@@ -100,10 +100,11 @@ qvunex.configure(rate_usd_hour=0.35, context={
 })
 ```
 
-Why this is in the tool rather than in a document: I published a benchmark showing 4-bit
-quantization was 24.8% *more* expensive than fp16, then re-ran it with CUDA graphs enabled
-and measured 48.3% *cheaper*. One unreported flag, 73 percentage points, same card, same
-afternoon. A checklist nobody fills in is not a standard.
+Why this is in the tool rather than in a document: I measured 4-bit quantization
+at 9.2% *more* expensive per inference than fp16 in eager mode, then measured it
+55.7% *cheaper* with CUDA graphs enabled. Same model, same card, four minutes
+apart. One unreported flag, 65 percentage points. A checklist nobody fills in is
+not a standard.
 
 Full field list and the evidence behind each one:
 <https://gist.github.com/qaisermehdi3-coder/b00f296641681695daf90e5a500d0d23>
