@@ -1,0 +1,59 @@
+# Example pipeline. Made up numbers, no real traffic data.
+# Replace with your own stages and run:  python taskcost.py example.txt
+
+task: outbound email drafting
+hit_rate: 0.5
+
+# Prices are per million tokens. THESE ARE EXAMPLE FIGURES - replace them with
+# the current rate card before trusting any number this prints.
+price: claude-sonnet-4.6
+  input_per_mtok: 3.00
+  output_per_mtok: 15.00
+
+price: claude-haiku-4.5
+  input_per_mtok: 1.00
+  output_per_mtok: 5.00
+
+# The boring one. Runs once per contact, forty contacts to a batch.
+# Its cached prefix is 850 tokens and Haiku 4.5 needs 4096, so the cache
+# silently does nothing.
+stage: classify intent
+  model: claude-haiku-4.5
+  input_tokens: 900
+  output_tokens: 40
+  runs_per_task: 40
+  cached_prefix_tokens: 850
+  cache_ttl: 5m
+  breakpoint_stable: yes
+
+stage: industry research
+  model: claude-sonnet-4.6
+  input_tokens: 3200
+  output_tokens: 600
+  runs_per_task: 1
+  cached_prefix_tokens: 2400
+  cache_ttl: 5m
+  breakpoint_stable: yes
+
+# The breakpoint has a per-request timestamp inside it, so the prefix hash
+# never matches. Pays write prices, never gets a read.
+stage: draft the email
+  model: claude-sonnet-4.6
+  input_tokens: 4500
+  output_tokens: 900
+  runs_per_task: 1
+  cached_prefix_tokens: 3000
+  cache_ttl: 5m
+  breakpoint_stable: no
+
+stage: tone check
+  model: claude-haiku-4.5
+  input_tokens: 1200
+  output_tokens: 120
+  runs_per_task: 1
+
+stage: subject line
+  model: claude-haiku-4.5
+  input_tokens: 800
+  output_tokens: 30
+  runs_per_task: 1
