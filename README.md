@@ -12,14 +12,6 @@ This tells you.
 pip install qvunex
 ```
 
-See what it does in 30 seconds, without touching your code:
-
-```bash
-qvunex demo
-```
-
-That runs a synthetic workload and prints the full report — no integration, nothing to configure. When you want it on your own code:
-
 ```python
 from qvunex import meter
 
@@ -34,6 +26,76 @@ qvunex checklist
 ```
 
 That's the whole integration.
+
+---
+
+## If you pay per token instead of per GPU-hour
+
+Wrap the client and name the unit of work. Two lines.
+
+```python
+from qvunex import wrap, task
+
+client = wrap(anthropic.Anthropic())      # or OpenAI
+
+with task("outbound email"):
+    ...your existing code, unchanged...
+```
+
+`wrap` matters more than it looks. Decorating your own functions only sees the
+calls you wrote; wrapping the client also catches the calls your framework makes
+on your behalf — which is where the spend hides when one request fans out into
+six sub-agent calls.
+
+Then give it a rate card (copy `tools/prices.example.txt` to
+`~/.qvunex/prices.txt`) and run `qvunex report`:
+
+```
+--------------------------------------------------------------------
+  COST PER FINISHED TASK
+--------------------------------------------------------------------
+  task                    n       mean        p50        p95   calls
+  outbound email         12      $0.13      $0.13      $0.16    42.1
+  support triage          5      $0.02      $0.02      $0.02     1.0
+
+  retries                 1 call(s), $0.03   the same work paid for twice
+
+--------------------------------------------------------------------
+  COST BY ENDPOINT
+--------------------------------------------------------------------
+  endpoint                 calls   tokens $   share   per call
+  classify intent            480      $1.04   62.0%    $0.0022
+  research                    12      $0.27   16.2%      $0.02
+  draft                       13      $0.27   16.0%      $0.02
+
+--------------------------------------------------------------------
+  WHAT THIS SUGGESTS
+--------------------------------------------------------------------
+  * 'classify intent' is 63.4% of token spend while being the cheapest
+    single call you make ($0.0022). It is the 480 runs, not the price.
+  * 'classify intent' wrote 408,000 tokens to the prompt cache and read
+    none back. A write costs more than not caching at all, so that is a
+    pure surcharge.
+```
+
+Four things there are hard to get any other way:
+
+* **Cost per finished task**, not per request. Per-task cost cannot be
+  reconstructed afterwards from per-call billing data — the id has to be attached
+  at call time or the number is a guess.
+* **The spread.** The mean and the p95 are different questions. An average hides
+  the tasks that actually hurt.
+* **Cache writes counted apart from reads.** A write costs *more* than not
+  caching (1.25x input on the 5-minute TTL, 2x on the hour); a read costs 0.1x.
+  Folded into one "input tokens" figure, a cold run and a warm run look the same.
+* **Retries and fallbacks as their own line.** A retry is the same work paid for
+  twice. A fallback is a model you didn't ask for answering, at its price. Both
+  are real spend that logging the successful attempt drops on the floor.
+
+Thinking tokens are recorded separately where the provider reports them, and are
+*not* added to the bill again — they are a breakdown of tokens already counted.
+A model with no entry in your rate card is reported as unpriced and left out
+rather than estimated.
 
 ---
 
@@ -100,38 +162,13 @@ qvunex.configure(rate_usd_hour=0.35, context={
 })
 ```
 
-Why this is in the tool rather than in a document: I measured 4-bit quantization
-at 9.2% *more* expensive per inference than fp16 in eager mode, then measured it
-55.7% *cheaper* with CUDA graphs enabled. Same model, same card, four minutes
-apart. One unreported flag, 65 percentage points. A checklist nobody fills in is
-not a standard.
+Why this is in the tool rather than in a document: I published a benchmark showing 4-bit
+quantization was 24.8% *more* expensive than fp16, then re-ran it with CUDA graphs enabled
+and measured 48.3% *cheaper*. One unreported flag, 73 percentage points, same card, same
+afternoon. A checklist nobody fills in is not a standard.
 
 Full field list and the evidence behind each one:
 <https://gist.github.com/qaisermehdi3-coder/b00f296641681695daf90e5a500d0d23>
-
----
-
-## Measure your own GPU
-
-The sweep that produced those numbers is in this repo, as one file with no setup:
-
-```bash
-pip install vllm
-python benchmarks/sweep.py
-```
-
-It runs each configuration in a fresh process, disables prefix caching, gives every prompt a unique prefix, and pins output length so every run does identical work. You get a CSV containing the result and every condition that produced it, in the same row.
-
-To compare two builds of the same weights:
-
-```bash
-python benchmarks/sweep.py \
-    --model Qwen/Qwen2.5-1.5B-Instruct \
-    --compare-model Qwen/Qwen2.5-1.5B-Instruct-AWQ \
-    --compare-quantization awq
-```
-
-If you run it, send the CSV. Measurements across different hardware are the one thing nobody can collect alone.
 
 ---
 
