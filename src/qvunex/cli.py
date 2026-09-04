@@ -22,6 +22,9 @@ def main(argv=None):
                    help="GPU price per hour; overrides the recorded config")
     r.add_argument("--idle-threshold", type=float, default=5.0,
                    help="utilisation %% below which a GPU counts as idle")
+    r.add_argument("--prices", default=None, metavar="FILE",
+                   help="rate card for converting tokens to money "
+                        "(default ~/.qvunex/prices.txt)")
     r.add_argument("--json", action="store_true",
                    help="emit the raw analysis instead of the text report")
 
@@ -36,7 +39,7 @@ def main(argv=None):
     args = p.parse_args(argv)
 
     if args.cmd == "report":
-        a = analyse(args.path, args.rate, args.idle_threshold)
+        a = analyse(args.path, args.rate, args.idle_threshold, args.prices)
         if args.json:
             print(json.dumps(a, indent=2, default=str))
         else:
