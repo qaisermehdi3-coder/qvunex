@@ -6,8 +6,9 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from qvunex import meter                      # noqa: E402
+from qvunex import meter, record_retry, task, wrap   # noqa: E402
 from qvunex.core import _infer_batch, _record, configure, flush  # noqa: E402
+from qvunex.usage import extract           # noqa: E402
 from qvunex.report import analyse, render     # noqa: E402
 from qvunex.store import Store                # noqa: E402
 
@@ -259,3 +260,168 @@ def test_checklist_variance_is_within_batch_not_pooled():
         # A pooled calculation would report several hundred percent.
         assert hi < 5, f"pooled variance leaked through: {lo}-{hi}%"
         assert "not run-to-run reproducibility" in out
+
+
+# ---------------------------------------------------------------------------
+# schema 0.2 — tokens, tasks, wrapped clients
+# ---------------------------------------------------------------------------
+
+class _Obj:
+    """Stand-in for a provider response. Duck-typed, no SDK needed."""
+
+    def __init__(self, **kw):
+        self.__dict__.update(kw)
+
+
+def _anthropic(cold=True):
+    return _Obj(model="claude-sonnet-4.6", usage=_Obj(
+        input_tokens=120, output_tokens=340,
+        cache_creation_input_tokens=2400 if cold else 0,
+        cache_read_input_tokens=0 if cold else 2400))
+
+
+def test_usage_splits_cache_write_from_cache_read():
+    cold = extract(_anthropic(cold=True))
+    warm = extract(_anthropic(cold=False))
+    assert cold["cache_write"] == 2400 and cold["cache_read"] == 0
+    assert warm["cache_read"] == 2400 and warm["cache_write"] == 0
+    # A cache write costs more than no cache at all; a read costs a tenth. If
+    # these two collapsed into one number the report could not tell them apart.
+    assert cold != warm
+
+
+def test_usage_normalises_openai_inclusive_prompt_tokens():
+    # OpenAI's prompt_tokens includes cached tokens; Anthropic's excludes them.
+    r = _Obj(model="gpt-x", usage=_Obj(
+        prompt_tokens=3000, completion_tokens=500,
+        prompt_tokens_details=_Obj(cached_tokens=2000),
+        completion_tokens_details=_Obj(reasoning_tokens=380)))
+    u = extract(r)
+    assert u["tokens_in"] == 1000        # 3000 billed, 2000 of them cached
+    assert u["cache_read"] == 2000
+    assert u["tokens_reasoning"] == 380  # billed, and buried on most dashboards
+
+
+def test_usage_absent_is_none_not_zero():
+    assert extract(_Obj(model="x")) is None
+    u = extract(_anthropic())
+    assert "tokens_reasoning" not in u   # Anthropic folds thinking into output
+
+
+def test_task_id_threads_through_every_call_inside_it():
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "e.jsonl")
+        configure(path=p)
+
+        @meter("step")
+        def step():
+            return 1
+
+        with task("draft email"):
+            step()
+            step()
+        step()                            # outside the task
+        flush()
+
+        recs = [r for r in Store.read(p) if r["t"] == "call"]
+        assert len(recs) == 3
+        inside = [r for r in recs if "task_id" in r]
+        assert len(inside) == 2
+        assert inside[0]["task"] == "draft email"
+        assert inside[0]["task_id"] == inside[1]["task_id"]
+        assert "task" not in recs[-1]
+
+
+def test_wrap_records_calls_the_caller_never_touched():
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "e.jsonl")
+        configure(path=p)
+
+        class Messages:
+            def create(self, **kw):
+                return _anthropic()
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        client = wrap(Client())
+        with task("one task"):
+            client.messages.create(model="claude-sonnet-4.6", messages=[])
+            client.messages.create(model="claude-sonnet-4.6", messages=[],
+                                   qvunex_route="research")
+        flush()
+
+        recs = [r for r in Store.read(p) if r["t"] == "call"]
+        assert len(recs) == 2
+        assert recs[0]["endpoint"] == "messages.create"
+        assert recs[1]["endpoint"] == "research"      # route label honoured
+        assert recs[0]["cache_write"] == 2400
+        assert recs[0]["task"] == "one task"
+
+
+def test_wrap_marks_a_different_answering_model_as_fallback():
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "e.jsonl")
+        configure(path=p)
+
+        class Messages:
+            def create(self, **kw):
+                return _Obj(model="claude-haiku-4.5", usage=_Obj(
+                    input_tokens=10, output_tokens=20))
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        wrap(Client()).messages.create(model="claude-opus-5", messages=[])
+        flush()
+
+        rec = [r for r in Store.read(p) if r["t"] == "call"][0]
+        assert rec["status"] == "fallback"
+        assert rec["model"] == "claude-haiku-4.5"     # what actually answered
+
+
+def test_wrap_does_not_double_wrap():
+    class Messages:
+        def create(self, **kw):
+            return None
+
+    class Client:
+        def __init__(self):
+            self.messages = Messages()
+
+    c = Client()
+    first = wrap(c).messages.create
+    assert wrap(c).messages.create is first
+
+
+def test_wrap_never_breaks_the_caller():
+    with tempfile.TemporaryDirectory() as d:
+        configure(path=os.path.join(d, "e.jsonl"))
+
+        class Messages:
+            def create(self, **kw):
+                raise ValueError("provider said no")
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        client = wrap(Client())
+        try:
+            client.messages.create(model="m")
+        except ValueError as e:
+            assert str(e) == "provider said no"      # untouched
+        else:
+            raise AssertionError("exception was swallowed")
+
+
+def test_retry_is_recorded_as_spend():
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "e.jsonl")
+        configure(path=p)
+        record_retry("research", dur_ms=12.0, attempt=2, model="m")
+        flush()
+        rec = [r for r in Store.read(p) if r["t"] == "call"][0]
+        assert rec["status"] == "retry" and rec["attempt"] == 2
