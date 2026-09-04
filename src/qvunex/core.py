@@ -1,35 +1,59 @@
-"""The meter — the two lines a user adds to their own code.
+"""The meter — the lines a user adds to their own code.
 
-    from qvunex import meter
+Three ways in, smallest first:
 
-    @meter("checkout-classifier")
+    from qvunex import meter, task, wrap
+
+    @meter("checkout-classifier")          # time a function
     def predict(batch):
         return model(batch)
 
-That is the entire integration surface. Everything else (the background sampler,
-the session record, flushing at exit) starts itself on first use.
+    client = wrap(anthropic.Anthropic())   # record every call through a client
+
+    with task("draft outreach email"):     # group calls into one unit of work
+        ...
+
+`wrap` matters more than it looks. Decorating your own functions only sees the
+calls you wrote. Wrapping the client also catches the calls your framework makes
+on your behalf — which is where the spend hides when one request fans out into
+six sub-agent calls and the usage you can read back reports the last one only.
+
+`task` is the correlation id. Per-task cost cannot be reconstructed after the
+fact from per-call billing data; the id has to be attached at call time or the
+number is a guess.
 
 Design constraints, in priority order:
 
 1. **Never break the caller.** Any failure inside the meter is swallowed; the
    wrapped function's exception propagates untouched, and a call that raises is
-   still recorded with ok=False. A measurement tool that can take down production
-   is a tool nobody installs twice.
+   still recorded. A measurement tool that can take down production is a tool
+   nobody installs twice.
 2. **Cheap.** The hot path is a perf_counter pair, a dict, and an append to a
    buffered list. No I/O per call.
 3. **Local only.** No network. See store.py.
+
+Known limits, stated rather than hidden:
+
+* If your SDK retries internally, a client wrapper sits above those retries and
+  sees one call, not three. Set the SDK's own max_retries to 0 and retry in your
+  code if you need them counted.
+* A streaming response has no usage attached when the call returns, so tokens
+  are recorded only for non-streaming calls.
 """
 
 import atexit
+import contextvars
 import functools
 import os
 import socket
 import threading
 import time
+import uuid
 
 from .sampler import Sampler, gpu_info
-from .schema import call_record, session_record
+from .schema import FALLBACK, RETRY, call_record, session_record
 from .store import Store
+from .usage import extract
 
 DEFAULT_PATH = "~/.qvunex/events.jsonl"
 
@@ -43,6 +67,10 @@ _config = {
 
 _session = None
 _session_lock = threading.Lock()
+
+# The correlation id, carried through nested calls and across threads that
+# inherit the context. None when a call happens outside any task.
+_task_var = contextvars.ContextVar("qvunex_task", default=None)
 
 
 def configure(path=None, rate_usd_hour=None, sample_interval=None, enabled=None,
@@ -108,6 +136,47 @@ def flush():
         _session.store.flush()
 
 
+# ---------------------------------------------------------------------------
+# tasks — the correlation id
+# ---------------------------------------------------------------------------
+
+class _Task:
+    """One unit of finished work. Every call inside it carries its id.
+
+        with task("draft outreach email"):
+            classify(...)      # these three calls
+            research(...)      # all belong to
+            draft(...)         # one task
+
+    Nests: an inner task replaces the id for its own body and restores the outer
+    one on exit.
+    """
+
+    def __init__(self, name, task_id=None):
+        self.name = name
+        self.id = task_id or uuid.uuid4().hex[:12]
+        self._token = None
+
+    def __enter__(self):
+        self._token = _task_var.set((self.name, self.id))
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if self._token is not None:
+            _task_var.reset(self._token)
+        return False
+
+
+def task(name, task_id=None):
+    """Group everything inside into one finished task. See _Task."""
+    return _Task(name, task_id)
+
+
+def current_task():
+    """(name, id) of the task in progress, or None."""
+    return _task_var.get()
+
+
 def _infer_batch(args, kwargs):
     """Best-effort batch size from the first argument.
 
@@ -152,14 +221,27 @@ class _Span:
         return False
 
 
-def _record(endpoint, dur_ms, batch, ok, error=None, meta=None):
+def _record(endpoint, dur_ms, batch, ok, error=None, meta=None,
+            usage=None, model=None, status=None, attempt=None):
     if not _config["enabled"]:
         return
     try:
+        current = _task_var.get()
+        name, tid = current if current else (None, None)
         _get_session().store.write(call_record(
-            time.time(), endpoint, round(dur_ms, 4), batch, ok, error, meta))
+            time.time(), endpoint, round(dur_ms, 4), batch, ok, error, meta,
+            task=name, task_id=tid, model=model, status=status, usage=usage,
+            attempt=attempt))
     except Exception:
         pass  # never let instrumentation break the caller
+
+
+def _usage_of(value):
+    """Token counts off a provider response, or None. Never raises."""
+    try:
+        return extract(value)
+    except Exception:
+        return None
 
 
 def meter(endpoint, batch=None, meta=None):
@@ -167,6 +249,10 @@ def meter(endpoint, batch=None, meta=None):
 
     batch: int, or a callable (args, kwargs) -> int, when the batch size cannot be
     inferred from the first argument.
+
+    If the function returns a provider response, its token counts are recorded
+    too, so a decorated function that calls an API gets the same detail as a
+    wrapped client.
     """
     def decorator(fn):
         @functools.wraps(fn)
@@ -189,11 +275,102 @@ def meter(endpoint, batch=None, meta=None):
                 _record(endpoint, (time.perf_counter() - t0) * 1000.0,
                         n, False, type(e).__name__, meta)
                 raise
+            u = _usage_of(out)
             _record(endpoint, (time.perf_counter() - t0) * 1000.0,
-                    n, True, None, meta)
+                    n, True, None, meta,
+                    usage=u, model=(u or {}).get("model"))
             return out
         return wrapper
     return decorator
+
+
+# ---------------------------------------------------------------------------
+# wrapping a provider client
+# ---------------------------------------------------------------------------
+
+# Where the call actually happens on the common clients. Duck-typed: a client
+# that doesn't have one of these paths is skipped rather than erroring.
+_CALL_PATHS = (
+    ("messages", "create"),             # Anthropic
+    ("beta", "messages", "create"),     # Anthropic beta
+    ("chat", "completions", "create"),  # OpenAI chat
+    ("responses", "create"),            # OpenAI responses
+    ("completions", "create"),          # OpenAI legacy
+)
+
+
+def _wrapped_call(fn, endpoint):
+    @functools.wraps(fn)
+    def call(*args, **kwargs):
+        if not _config["enabled"]:
+            return fn(*args, **kwargs)
+        route = kwargs.get("qvunex_route")
+        if route is not None:
+            kwargs = {k: v for k, v in kwargs.items() if k != "qvunex_route"}
+        name = route or endpoint
+        t0 = time.perf_counter()
+        try:
+            out = fn(*args, **kwargs)
+        except Exception as e:
+            _record(name, (time.perf_counter() - t0) * 1000.0, 1, False,
+                    type(e).__name__)
+            raise
+        u = _usage_of(out)
+        asked = kwargs.get("model")
+        answered = (u or {}).get("model")
+        status = FALLBACK if (asked and answered
+                              and asked not in answered) else None
+        _record(name, (time.perf_counter() - t0) * 1000.0, 1, True,
+                usage=u, model=answered or asked, status=status)
+        return out
+
+    call._qvunex_wrapped = True
+    return call
+
+
+def wrap(client, endpoint=None):
+    """Record every call made through a provider client, and return it.
+
+        client = wrap(anthropic.Anthropic())
+
+    Pass qvunex_route="my-step" to any call to label that one route; the keyword
+    is stripped before the provider sees it.
+
+    A call whose response reports a different model than the one asked for is
+    recorded as a fallback — real spend that ordinary logging attributes to the
+    model you thought you were using.
+
+    Returns the same client object, mutated in place, so it is safe to wrap once
+    at startup and pass the client around as normal.
+    """
+    for path in _CALL_PATHS:
+        holder = client
+        for part in path[:-1]:
+            holder = getattr(holder, part, None)
+            if holder is None:
+                break
+        if holder is None:
+            continue
+        name = path[-1]
+        fn = getattr(holder, name, None)
+        if fn is None or getattr(fn, "_qvunex_wrapped", False):
+            continue
+        try:
+            setattr(holder, name, _wrapped_call(fn, endpoint or ".".join(path)))
+        except Exception:
+            pass  # some clients forbid attribute assignment; skip that path
+    return client
+
+
+def record_retry(endpoint, dur_ms=0.0, attempt=2, model=None, usage=None):
+    """Record an attempt you retried yourself.
+
+    Only needed when you handle retries in your own code. Spend on a retried
+    call is real, it is on your bill, and it is invisible to anything that only
+    records the attempt that finally succeeded.
+    """
+    _record(endpoint, dur_ms, 1, True, usage=usage, model=model,
+            status=RETRY, attempt=attempt)
 
 
 meter.span = _Span
