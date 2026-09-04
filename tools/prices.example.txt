@@ -1,0 +1,34 @@
+# Example rate card. Copy to ~/.qvunex/prices.txt and edit, or pass it with
+#   qvunex report --prices path/to/this/file
+#
+# THE NUMBERS BELOW ARE PLACEHOLDERS. Replace every one of them with the
+# current published rate before you trust anything the report prints. Prices
+# change, and a stale card is worse than no card: no card gets you "tokens
+# counted, not costed", which is honest. A stale card gets you a confident
+# wrong number.
+#
+# Prices are USD per million tokens. Model names are matched by prefix, so one
+# entry covers every dated build of that model.
+
+price: claude-sonnet-4-5
+  input_per_mtok: 3.00
+  output_per_mtok: 15.00
+  # cache_write_per_mtok and cache_read_per_mtok are optional. Left out, they
+  # default to 1.25x and 0.10x the input rate -- the published multipliers for
+  # a 5-minute cache TTL. If you use the 1-hour TTL the write multiplier is 2x,
+  # so set it here rather than letting the default understate your bill:
+  #   cache_write_per_mtok: 6.00
+
+price: claude-haiku-4-5
+  input_per_mtok: 1.00
+  output_per_mtok: 5.00
+
+price: gpt-5
+  input_per_mtok: 1.25
+  output_per_mtok: 10.00
+  cache_read_per_mtok: 0.125
+
+# Self-hosted models have no per-token price -- you pay for the GPU by the hour
+# instead. Leave them out of this file and set qvunex.configure(rate_usd_hour=...)
+# so the report costs them by wall clock. Do not invent a per-token rate for
+# them; the two kinds of cost are added separately in the report for a reason.
