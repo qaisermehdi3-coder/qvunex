@@ -53,6 +53,12 @@ TOKEN_FIELDS = ("tokens_in", "tokens_out", "tokens_reasoning",
 # without it: "included" (inside tokens_out) or "extra" (billed on top).
 USAGE_FLAGS = ("reasoning_billed",)
 
+# The provider's own total, and the gap between it and what we accounted for.
+# Kept out of TOKEN_FIELDS on purpose -- summing them alongside the parts would
+# double count. A non-zero tokens_unaccounted means our reading of that response
+# is incomplete, and the report says so rather than printing a tidy number.
+RECONCILE_FIELDS = ("tokens_total_reported", "tokens_unaccounted")
+
 
 def session_record(ts, host, gpus, config):
     return {
@@ -110,6 +116,9 @@ def call_record(ts, endpoint, dur_ms, batch, ok, error=None, meta=None,
                 r[key] = usage[key]
         for key in USAGE_FLAGS:
             if usage.get(key):
+                r[key] = usage[key]
+        for key in RECONCILE_FIELDS:
+            if usage.get(key) is not None:
                 r[key] = usage[key]
     if error:
         r["error"] = error

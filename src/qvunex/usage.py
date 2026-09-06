@@ -66,6 +66,36 @@ def _first(obj, *names):
     return None
 
 
+def _reconcile(out):
+    """Check our own arithmetic against the provider's own total.
+
+    Where a provider reports a total, it is the one number we did not derive.
+    Adding up what we recorded and comparing is therefore a free audit of the
+    whole extraction: a renamed field, a count that turned out to be nested
+    inside another, a new kind of token nobody has told us about -- each of them
+    shows up here as a difference, where otherwise they would show up as a
+    slightly wrong bill and nothing else.
+
+    Double counting reasoning tokens is the specific failure this catches. Both
+    directions of that mistake are silent at the provider, and both are visible
+    here immediately.
+
+    A difference is recorded, never corrected. We do not know which side is
+    wrong, and quietly adjusting a number to make a check pass is how a meter
+    starts lying.
+    """
+    total = out.get("tokens_total_reported")
+    if total is None:
+        return
+    accounted = (out.get("tokens_in", 0) + out.get("cache_read", 0)
+                 + out.get("cache_write", 0) + out.get("tokens_out", 0))
+    if out.get("reasoning_billed") == EXTRA:
+        accounted += out.get("tokens_reasoning", 0)
+    diff = total - accounted
+    if diff:
+        out["tokens_unaccounted"] = diff
+
+
 def _google(usage, response=None):
     """Google's shape. Same facts, different names, one open question.
 
@@ -118,6 +148,7 @@ def _google(usage, response=None):
     model = _get(response, "model_version") or _get(response, "modelVersion")
     if isinstance(model, str) and model:
         out["model"] = model
+    _reconcile(out)
     return out or None
 
 
@@ -190,8 +221,13 @@ def extract(response):
         # tokens are already counted in completion_tokens.
         out["reasoning_billed"] = INCLUDED
 
+    total = _int(_get(usage, "total_tokens"))
+    if total is not None:
+        out["tokens_total_reported"] = total
+
     model = _get(response, "model")
     if isinstance(model, str) and model:
         out["model"] = model
 
+    _reconcile(out)
     return out or None

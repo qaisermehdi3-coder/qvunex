@@ -204,6 +204,15 @@ def analyse(path, rate_usd_hour=None, idle_threshold=IDLE_UTIL_THRESHOLD,
     # different money depending on which provider returned it.
     reasoning_extra = sum(c.get("tokens_reasoning", 0) for c in calls
                           if c.get("reasoning_billed") == "extra")
+    # Calls whose parts do not add up to the provider's own total. Not an
+    # estimate of anything: a signal that this corpus contains tokens we did not
+    # recognise, and that every figure derived from it is short by at least that
+    # much. The provider's total is the one number we did not derive, so this is
+    # a free audit of the whole extraction.
+    unreconciled = [c for c in calls if c.get("tokens_unaccounted")]
+    unaccounted_tokens = sum(abs(c["tokens_unaccounted"]) for c in unreconciled)
+    reconciled = sum(1 for c in calls if c.get("tokens_total_reported")
+                     and not c.get("tokens_unaccounted"))
     token_cost = sum(t["cost_usd"] for t in tasks) + loose["cost_usd"]
     unpriced_calls = sum(t["unpriced"] for t in tasks) + loose["unpriced"]
 
@@ -307,6 +316,9 @@ def analyse(path, rate_usd_hour=None, idle_threshold=IDLE_UTIL_THRESHOLD,
         "gpu": util,
         "tokens": dict(tokens_total),
         "reasoning_extra": reasoning_extra,
+        "reconciled_calls": reconciled,
+        "unreconciled_calls": len(unreconciled),
+        "unaccounted_tokens": unaccounted_tokens,
         "token_cost_usd": token_cost if cards else None,
         "unpriced_calls": unpriced_calls,
         "priced_models": sorted(cards) if cards else [],
@@ -369,6 +381,12 @@ def render(a, width=68):
             if extra and extra != tk["tokens_reasoning"]:
                 add(f"    of which extra    {extra:>12,}"
                     "   the rest were already inside output")
+        if a.get("unreconciled_calls"):
+            add(f"  UNACCOUNTED         {a['unaccounted_tokens']:>12,}"
+                f"   across {a['unreconciled_calls']:,} call(s)")
+        elif a.get("reconciled_calls"):
+            add(f"  reconciled          {a['reconciled_calls']:>12,}"
+                "   calls whose parts equal the provider's own total")
         if a.get("token_cost_usd") is not None:
             add(f"  token spend         {_usd(a['token_cost_usd']):>12}")
         if not a.get("priced_models"):
@@ -565,6 +583,14 @@ def _suggestions(a):
             top = a["endpoints"][0]
             out.append(f"'{top['endpoint']}' is {_pct(top['share_of_busy'])} of all "
                        "compute. Optimisation effort belongs there first.")
+    # First, before anything derived from the numbers: do the numbers add up?
+    if a.get("unreconciled_calls"):
+        out.append(f"{a['unaccounted_tokens']:,} tokens across "
+                   f"{a['unreconciled_calls']:,} call(s) do not add up to the "
+                   "total the provider itself reported. Either a field is being "
+                   "read wrongly or there is a kind of token here nobody has "
+                   "told us about. Every cost above is short by at least that "
+                   "much, and nothing has been adjusted to hide it.")
     # Cache health is judged per endpoint, not over the whole corpus. One step
     # writing a cache nobody reads is invisible in the totals the moment some
     # other step has a healthy hit rate -- and the totals are what a dashboard
