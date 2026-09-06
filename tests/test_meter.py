@@ -775,3 +775,93 @@ def test_reasoning_flag_survives_into_the_record_and_the_report():
         assert a["reasoning_extra"] == 589 + 236 + 238
         out = render(a)
         assert "billed on top of output" in out
+
+
+# ---- reconciliation against the provider's own total -----------------------
+#
+# verstands: "assert computed cost against the provider total, since
+# double-counting reasoning is an easy silent bug." The provider's total is the
+# one number we did not derive, so comparing our parts against it audits the
+# whole extraction for free.
+
+def test_google_parts_reconcile_against_their_own_total():
+    for nums in GOOGLE_CALLS:
+        u = extract(_GoogleResponse(*nums))
+        assert u["tokens_total_reported"] == nums[3]
+        assert "tokens_unaccounted" not in u
+
+
+def test_a_gap_against_the_provider_total_is_recorded_not_corrected():
+    prompt, output, thinking, total = GOOGLE_CALLS[0]
+    u = extract(_GoogleResponse(prompt, output, thinking, total + 150))
+    assert u["tokens_unaccounted"] == 150
+    # the parts themselves are untouched -- we do not know which side is wrong
+    assert u["tokens_in"] == prompt
+    assert u["tokens_out"] == output
+    assert u["tokens_reasoning"] == thinking
+
+
+def test_double_counting_reasoning_would_be_caught():
+    """If we wrongly flagged OpenAI's reasoning as additive, the sum would
+    overshoot their total by exactly the reasoning tokens."""
+    class Details:
+        reasoning_tokens = 900
+
+    class U:
+        prompt_tokens = 1000
+        completion_tokens = 1500
+        total_tokens = 2500
+        completion_tokens_details = Details()
+
+    class R:
+        usage = U()
+        model = "gpt-5"
+
+    u = extract(R())
+    assert "tokens_unaccounted" not in u        # correct as it stands
+    from qvunex.usage import _reconcile
+    wrong = dict(u, reasoning_billed="extra")
+    wrong.pop("tokens_unaccounted", None)
+    _reconcile(wrong)
+    assert wrong["tokens_unaccounted"] == -900  # the bug shows as a negative gap
+
+
+def test_report_flags_unaccounted_tokens_and_does_not_hide_them():
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "e.jsonl")
+        s = Store(p, flush_every=1)
+        t = time.time()
+        s.write({"t": "call", "v": "0.3", "ts": t, "endpoint": "answer",
+                 "dur_ms": 10.0, "batch": 1, "ok": True, "status": "ok",
+                 "task": "qa", "task_id": "t1", "model": "m",
+                 "tokens_in": 17, "tokens_out": 144, "tokens_reasoning": 589,
+                 "reasoning_billed": "extra",
+                 "tokens_total_reported": 900, "tokens_unaccounted": 150})
+        s.close()
+        a = analyse(p, prices=prices.parse("price: m\n  input_per_mtok: 1.00\n"
+                                           "  output_per_mtok: 10.00\n"))
+        assert a["unreconciled_calls"] == 1
+        assert a["unaccounted_tokens"] == 150
+        out = render(a)
+        assert "UNACCOUNTED" in out
+        assert "do not add up" in out
+
+
+def test_a_clean_corpus_says_so():
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "e.jsonl")
+        s = Store(p, flush_every=1)
+        t = time.time()
+        for i, (prompt, output, thinking, total) in enumerate(GOOGLE_CALLS):
+            s.write({"t": "call", "v": "0.3", "ts": t + i, "endpoint": "answer",
+                     "dur_ms": 10.0, "batch": 1, "ok": True, "status": "ok",
+                     "task": "qa", "task_id": "t%d" % i, "model": "m",
+                     "tokens_in": prompt, "tokens_out": output,
+                     "tokens_reasoning": thinking, "reasoning_billed": "extra",
+                     "tokens_total_reported": total})
+        s.close()
+        a = analyse(p, prices=prices.parse("price: m\n  input_per_mtok: 1.00\n"
+                                           "  output_per_mtok: 10.00\n"))
+        assert a["unreconciled_calls"] == 0
+        assert a["reconciled_calls"] == 3
+        assert "reconciled" in render(a)
