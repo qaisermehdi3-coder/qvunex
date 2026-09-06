@@ -672,3 +672,106 @@ def test_demo_does_not_double_when_run_twice():
         finally:
             os.chdir(cwd)
     assert totals[0] == totals[1]
+
+
+# ---- reasoning tokens: two conventions -------------------------------------
+#
+# Measured against gemini-3.6-flash on 2026-09-06. Three calls, and in every one
+# the provider's own total equalled prompt + output + thinking. So Google bills
+# thinking on top of the output count; OpenAI reports it inside. These tests
+# exist so nobody quietly collapses the two back into one rule.
+
+GOOGLE_CALLS = [(17, 144, 589, 750),
+                (4632, 26, 236, 4894),
+                (4632, 32, 238, 4902)]
+
+
+class _GoogleUsage:
+    def __init__(self, prompt, output, thinking, total):
+        self.prompt_token_count = prompt
+        self.candidates_token_count = output
+        self.thoughts_token_count = thinking
+        self.total_token_count = total
+
+
+class _GoogleResponse:
+    def __init__(self, *nums):
+        self.usage_metadata = _GoogleUsage(*nums)
+        self.model_version = "gemini-3.6-flash"
+
+
+def test_google_totals_prove_thinking_is_additive():
+    for prompt, output, thinking, total in GOOGLE_CALLS:
+        assert prompt + output + thinking == total
+        assert prompt + output != total      # the other reading is ruled out
+
+
+def test_google_usage_is_read_and_flagged_extra():
+    u = extract(_GoogleResponse(*GOOGLE_CALLS[0]))
+    assert u["tokens_in"] == 17
+    assert u["tokens_out"] == 144
+    assert u["tokens_reasoning"] == 589
+    assert u["reasoning_billed"] == "extra"
+    assert u["model"] == "gemini-3.6-flash"
+
+
+def test_openai_reasoning_is_flagged_included():
+    class Details:
+        reasoning_tokens = 900
+
+    class U:
+        prompt_tokens = 1000
+        completion_tokens = 1500
+        completion_tokens_details = Details()
+
+    class R:
+        usage = U()
+        model = "gpt-5"
+
+    u = extract(R())
+    assert u["tokens_reasoning"] == 900
+    assert u["reasoning_billed"] == "included"
+
+
+def test_the_same_tokens_cost_differently_under_each_convention():
+    cards = prices.parse("price: m\n  input_per_mtok: 1.00\n"
+                         "  output_per_mtok: 10.00\n")
+    base = {"model": "m", "tokens_in": 17, "tokens_out": 144,
+            "tokens_reasoning": 589}
+    extra = prices.cost_of(dict(base, reasoning_billed="extra"), cards)
+    included = prices.cost_of(dict(base, reasoning_billed="included"), cards)
+    assert extra > included
+    # 589 thinking tokens against 144 output tokens: the gap is most of the bill
+    assert extra / included > 4
+    # and the difference is exactly the thinking tokens at the output rate
+    assert abs((extra - included) - 589 / 1_000_000 * 10.00) < 1e-12
+
+
+def test_unflagged_reasoning_is_treated_as_included():
+    """The conservative default: it can understate, it cannot invent spend."""
+    cards = prices.parse("price: m\n  input_per_mtok: 1.00\n"
+                         "  output_per_mtok: 10.00\n")
+    no_flag = {"model": "m", "tokens_in": 17, "tokens_out": 144,
+               "tokens_reasoning": 589}
+    included = prices.cost_of(dict(no_flag, reasoning_billed="included"), cards)
+    assert prices.cost_of(no_flag, cards) == included
+
+
+def test_reasoning_flag_survives_into_the_record_and_the_report():
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "e.jsonl")
+        s = Store(p, flush_every=1)
+        t = time.time()
+        for i, (prompt, output, thinking, _total) in enumerate(GOOGLE_CALLS):
+            s.write({"t": "call", "v": "0.3", "ts": t + i, "endpoint": "answer",
+                     "dur_ms": 10.0, "batch": 1, "ok": True, "status": "ok",
+                     "task": "qa", "task_id": "t%d" % i, "model": "m",
+                     "tokens_in": prompt, "tokens_out": output,
+                     "tokens_reasoning": thinking, "reasoning_billed": "extra"})
+        s.close()
+        cards = prices.parse("price: m\n  input_per_mtok: 1.00\n"
+                             "  output_per_mtok: 10.00\n")
+        a = analyse(p, prices=cards)
+        assert a["reasoning_extra"] == 589 + 236 + 238
+        out = render(a)
+        assert "billed on top of output" in out
