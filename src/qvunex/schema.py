@@ -24,9 +24,15 @@ Version history
        route or task tag, wall time, and success-versus-retry-versus-fallback as
        a status. Without the tag and the cache split, cost reports lie even when
        the totals look neat.
+  0.3  call gains `reasoning_billed`. Additive, and forced by a measurement
+       rather than a preference: providers disagree about whether thinking
+       tokens sit inside the output count or on top of it, and the same token
+       counts therefore mean different money depending on who returned them.
+       A 0.2 reader ignores the field and prices thinking as included, which is
+       what it did before. See usage.py for the numbers this came from.
 """
 
-SCHEMA_VERSION = "0.2"
+SCHEMA_VERSION = "0.3"
 
 CALL = "call"
 GPU = "gpu"
@@ -42,6 +48,10 @@ FALLBACK = "fallback"
 
 TOKEN_FIELDS = ("tokens_in", "tokens_out", "tokens_reasoning",
                 "cache_read", "cache_write")
+
+# Not a token count, but recorded alongside them because pricing is wrong
+# without it: "included" (inside tokens_out) or "extra" (billed on top).
+USAGE_FLAGS = ("reasoning_billed",)
 
 
 def session_record(ts, host, gpus, config):
@@ -71,7 +81,9 @@ def call_record(ts, endpoint, dur_ms, batch, ok, error=None, meta=None,
     status          ok / failed / retry / fallback.
     usage           token counts from usage.extract(); absent keys mean the
                     provider did not report that number, which is different from
-                    reporting zero.
+                    reporting zero. Also carries reasoning_billed, which decides
+                    whether thinking tokens are added to the cost or were
+                    already inside the output count.
     attempt         1 for the first try, 2+ for retries of the same logical call.
     """
     r = {
@@ -95,6 +107,9 @@ def call_record(ts, endpoint, dur_ms, batch, ok, error=None, meta=None,
     if usage:
         for key in TOKEN_FIELDS:
             if key in usage and usage[key] is not None:
+                r[key] = usage[key]
+        for key in USAGE_FLAGS:
+            if usage.get(key):
                 r[key] = usage[key]
     if error:
         r["error"] = error

@@ -199,6 +199,11 @@ def analyse(path, rate_usd_hour=None, idle_threshold=IDLE_UTIL_THRESHOLD,
         for f in TOKEN_FIELDS:
             if c.get(f):
                 tokens_total[f] += c[f]
+    # Thinking tokens that are charged on top of the output count rather than
+    # being a breakdown of it. Tracked apart because the same figure means
+    # different money depending on which provider returned it.
+    reasoning_extra = sum(c.get("tokens_reasoning", 0) for c in calls
+                          if c.get("reasoning_billed") == "extra")
     token_cost = sum(t["cost_usd"] for t in tasks) + loose["cost_usd"]
     unpriced_calls = sum(t["unpriced"] for t in tasks) + loose["unpriced"]
 
@@ -301,6 +306,7 @@ def analyse(path, rate_usd_hour=None, idle_threshold=IDLE_UTIL_THRESHOLD,
         "endpoints": endpoints,
         "gpu": util,
         "tokens": dict(tokens_total),
+        "reasoning_extra": reasoning_extra,
         "token_cost_usd": token_cost if cards else None,
         "unpriced_calls": unpriced_calls,
         "priced_models": sorted(cards) if cards else [],
@@ -356,8 +362,13 @@ def render(a, width=68):
                     "   of all prompt tokens sent")
         add(f"  output              {tk.get('tokens_out', 0):>12,}")
         if tk.get("tokens_reasoning"):
-            add(f"    of which thinking {tk['tokens_reasoning']:>12,}"
-                "   billed inside output, not extra")
+            extra = a.get("reasoning_extra") or 0
+            note = ("billed on top of output" if extra
+                    else "billed inside output, not extra")
+            add(f"  thinking            {tk['tokens_reasoning']:>12,}   {note}")
+            if extra and extra != tk["tokens_reasoning"]:
+                add(f"    of which extra    {extra:>12,}"
+                    "   the rest were already inside output")
         if a.get("token_cost_usd") is not None:
             add(f"  token spend         {_usd(a['token_cost_usd']):>12}")
         if not a.get("priced_models"):
@@ -454,10 +465,15 @@ def render(a, width=68):
     add("")
 
     # --- waste ---
-    add(bar)
-    add("  WASTE")
-    add(bar)
+    # Duty cycle, batch efficiency and idle burn are all questions about a
+    # device you are renting by the hour. On a per-token API none of them mean
+    # anything -- you are not paying for the gaps -- so the section is dropped
+    # rather than printed full of numbers that look like findings.
     g = a["gpu"]
+    if g or not a.get("tokens"):
+        add(bar)
+        add("  WASTE")
+        add(bar)
     if g:
         add(f"  mean GPU utilisation      {g['mean_util']:.1f}%")
         add(f"  time below {g['idle_threshold']:.0f}% util        "
@@ -471,19 +487,20 @@ def render(a, width=68):
         add(f"  memory in use             {g['mean_mem_used_mib']:.0f} /"
             f" {g['mem_total_mib']:.0f} MiB"
             f"  ({_pct(g['mean_mem_used_mib']/max(g['mem_total_mib'],1))})")
-    else:
+    elif not a.get("tokens"):
         add("  no GPU samples -- nvidia-smi not available on this host")
 
-    add(f"  duty cycle                {_pct(a['duty_cycle'])}"
-        "   time actually inside inference")
-    add(f"  batch efficiency          {_pct(a['batch_efficiency'])}"
-        f"   mean batch vs max seen ({a['max_batch']})")
-    if a["concurrent"]:
+    if g or not a.get("tokens"):
+        add(f"  duty cycle                {_pct(a['duty_cycle'])}"
+            "   time actually inside inference")
+        add(f"  batch efficiency          {_pct(a['batch_efficiency'])}"
+            f"   mean batch vs max seen ({a['max_batch']})")
+        if a["concurrent"]:
+            add("")
+            add("  note: summed call time exceeds wall time -- calls overlap.")
+            add("        duty cycle is capped at 100% and cost shares are")
+            add("        proportional, not causal.")
         add("")
-        add("  note: summed call time exceeds wall time -- calls overlap.")
-        add("        duty cycle is capped at 100% and cost shares are")
-        add("        proportional, not causal.")
-    add("")
 
     # --- what to do ---
     add(bar)
@@ -570,7 +587,13 @@ def _suggestions(a):
     tk = a.get("tokens") or {}
     if tk.get("tokens_reasoning") and tk.get("tokens_out"):
         share = tk["tokens_reasoning"] / tk["tokens_out"]
-        if share > 0.3:
+        if a.get("reasoning_extra"):
+            out.append(f"{tk['tokens_reasoning']:,} thinking tokens are billed on "
+                       f"top of the {tk['tokens_out']:,} output tokens, not inside "
+                       "them. Anything reading the output count alone sees "
+                       f"{_pct(tk['tokens_out'] / (tk['tokens_out'] + tk['tokens_reasoning']))} "
+                       "of what you are charged for.")
+        elif share > 0.3:
             out.append(f"{_pct(share)} of output tokens are thinking tokens. They "
                        "are billed and they are invisible to any dashboard that "
                        "reads completion counts alone.")

@@ -27,17 +27,26 @@ The defaults here assume the 5-minute TTL, because that is the default TTL; if
 you use the hour, set `cache_write_per_mtok` yourself rather than letting this
 file guess on your behalf. Whichever applies, the assumption is printed.
 
-**Reasoning tokens are already inside the output count.** Both providers that
-report them separately report them as a breakdown of tokens they have already
-billed, not as an extra line. They are recorded so you can see them; they are not
-added again here. Adding them would inflate every reasoning-heavy task by roughly
-a third, which is the same error as ignoring them, pointed the other way.
+**Reasoning tokens are counted two different ways and you have to know which.**
+OpenAI reports them as a breakdown of `completion_tokens` -- already billed, so
+adding them again inflates the bill. Google reports them *outside* the output
+count: their own `total_token_count` equals prompt + candidates + thoughts, so
+not adding them undercounts it. On a short reasoning-heavy call thinking can be
+four fifths of the tokens, so this is not a rounding difference in either
+direction, and neither provider raises an error if you get it wrong.
+
+So we do not decide globally. `usage.extract()` records `reasoning_billed` per
+call -- "included" or "extra" -- and this file acts on that. A call that reports
+thinking tokens without saying which convention applies is treated as "included",
+the conservative reading: it can understate, but it cannot invent spend.
 
 Model ids carry a date suffix the rate card does not. Matching is by longest
 prefix, so one `claude-sonnet-4-5` entry covers every dated build of it.
 """
 
 import os
+
+from .usage import EXTRA
 
 DEFAULT_PRICES_PATH = "~/.qvunex/prices.txt"
 
@@ -133,11 +142,18 @@ def cost_of(record, cards):
     if not card:
         return None
     r = rates(card)
+    billable = [("tokens_in", "input"),
+                ("tokens_out", "output"),
+                ("cache_write", "cache_write"),
+                ("cache_read", "cache_read")]
+
+    # Thinking tokens are charged at the output rate, but only where the
+    # provider reports them on top of the output count rather than inside it.
+    if record.get("reasoning_billed") == EXTRA:
+        billable.append(("tokens_reasoning", "output"))
+
     total = 0.0
-    for field, rate_key in (("tokens_in", "input"),
-                            ("tokens_out", "output"),
-                            ("cache_write", "cache_write"),
-                            ("cache_read", "cache_read")):
+    for field, rate_key in billable:
         n = record.get(field)
         if not n:
             continue
@@ -145,6 +161,4 @@ def cost_of(record, cards):
         if rate is None:
             return None          # priced in part is not priced
         total += n / 1_000_000.0 * rate
-    # tokens_reasoning is deliberately absent: it is a breakdown of output
-    # tokens already counted above, not an additional charge.
     return total
