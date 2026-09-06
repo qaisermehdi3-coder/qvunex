@@ -1,0 +1,27 @@
+# QVUNEX CORPUS entry 006
+# Date: 2026-08-21 | NVIDIA Tesla T4 (Google Colab) | vLLM 0.27.1 | fp16 compute
+# Qwen2.5-1.5B-Instruct vs Qwen2.5-1.5B-Instruct-AWQ (4-bit)
+# 128 output tokens, ignore_eos, max_model_len=1024, rate $0.35/hr
+# Same session, same card, minutes apart. Only difference: enforce_eager flag.
+config,model,batch,tok_per_sec,watts,usd_per_1m_tokens,joules_per_token
+eager,fp16,1,26.95,55.9,3.607252,2.0742
+eager,fp16,8,210.93,57.2,0.460916,0.2712
+eager,fp16,32,856.16,65.5,0.113556,0.0765
+eager,fp16,128,2651.33,62.4,0.036669,0.0235
+eager,awq-int4,1,21.60,33.5,4.500183,1.5509
+eager,awq-int4,8,185.03,34.9,0.525431,0.1886
+eager,awq-int4,32,738.10,40.5,0.131720,0.0549
+eager,awq-int4,128,2926.28,67.2,0.033224,0.0230
+cudagraphs,fp16,1,66.75,67.1,1.456537,1.0052
+cudagraphs,fp16,8,497.65,67.3,0.195361,0.1352
+cudagraphs,fp16,32,1425.64,67.3,0.068196,0.0472
+cudagraphs,fp16,128,3632.00,66.5,0.026768,0.0183
+cudagraphs,awq-int4,1,129.06,67.4,0.753296,0.5222
+cudagraphs,awq-int4,8,976.51,67.4,0.099561,0.0690
+cudagraphs,awq-int4,32,2247.11,65.9,0.043265,0.0293
+cudagraphs,awq-int4,128,3759.50,65.9,0.025860,0.0175
+# FINDING: enforce_eager=True inverted the conclusion.
+#   AWQ vs fp16 cost:  eager +24.8/+14.0/+16.0/-9.4 %
+#                     graphs -48.3/-49.0/-36.6/-3.4 %
+#   The flag sped AWQ up 5.97x at batch 1 but fp16 only 2.48x.
+#   Corrected conclusion: AWQ is ~48% cheaper AND ~48% lower energy with CUDA graphs.

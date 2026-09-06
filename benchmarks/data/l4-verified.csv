@@ -1,0 +1,17 @@
+gpu,format,graph_mode,batch,seconds_total,seconds_per_inference
+L4,awq,eager,1,3.8015,3.801500
+L4,awq,eager,8,3.9519,0.493988
+L4,awq,eager,32,4.1149,0.128591
+L4,awq,eager,128,4.3224,0.033769
+L4,awq,graphs,1,0.7501,0.750100
+L4,awq,graphs,8,0.7721,0.096513
+L4,awq,graphs,32,0.9304,0.029075
+L4,awq,graphs,128,1.7123,0.013377
+L4,fp16,eager,1,3.1980,3.198000
+L4,fp16,eager,8,3.4560,0.432000
+L4,fp16,eager,32,3.6100,0.112813
+L4,fp16,eager,128,3.8101,0.029767
+L4,fp16,graphs,1,1.6977,1.697700
+L4,fp16,graphs,8,1.7423,0.217788
+L4,fp16,graphs,32,1.9551,0.061097
+L4,fp16,graphs,128,2.4198,0.018905
