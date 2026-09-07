@@ -35,6 +35,11 @@ def main(argv=None):
     d = sub.add_parser("demo", help="run a synthetic workload and report on it")
     d.add_argument("--seconds", type=float, default=12.0)
     d.add_argument("--rate", type=float, default=0.35)
+    d.add_argument("--api", action="store_true",
+                   help="simulate per-token API calls instead of local GPU "
+                        "work, and show cost per finished task. No key needed.")
+    d.add_argument("--tasks", type=int, default=15,
+                   help="how many finished tasks to simulate with --api")
 
     args = p.parse_args(argv)
 
@@ -57,6 +62,9 @@ def main(argv=None):
         return 1 if missing else 0
 
     if args.cmd == "demo":
+        if args.api:
+            from .demo import run_api_demo
+            return run_api_demo(args.tasks)
         from .demo import run_demo
         return run_demo(args.seconds, args.rate)
 
