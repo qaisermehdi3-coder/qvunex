@@ -47,7 +47,13 @@ calls you wrote; wrapping the client also catches the calls your framework makes
 on your behalf — which is where the spend hides when one request fans out into
 six sub-agent calls.
 
-Then give it a rate card (copy `tools/prices.example.txt` to
+To see the output before wiring anything up — no API key, no network, no spend:
+
+```bash
+qvunex demo --api
+```
+
+On your own workload, give it a rate card (copy `tools/prices.example.txt` to
 `~/.qvunex/prices.txt`) and run `qvunex report`:
 
 ```
@@ -92,8 +98,42 @@ Four things there are hard to get any other way:
   twice. A fallback is a model you didn't ask for answering, at its price. Both
   are real spend that logging the successful attempt drops on the floor.
 
-Thinking tokens are recorded separately where the provider reports them, and are
-*not* added to the bill again — they are a breakdown of tokens already counted.
+### Thinking tokens are counted two different ways
+
+Providers disagree about whether reasoning tokens sit *inside* the output count
+or *on top of* it, and neither raises an error if you assume the wrong one.
+
+Measured against `gemini-3.6-flash`, three calls, using Google's own reported
+total:
+
+```
+   17 + 144 + 589 =   750
+4,632 +  26 + 236 = 4,894
+4,632 +  32 + 238 = 4,902
+```
+
+`total = prompt + output + thinking`, exactly, every time. So on Google, thinking
+is billed **on top of** the output count. OpenAI is the reverse — `reasoning_tokens`
+is a subset of `completion_tokens`, and adding it again inflates the bill.
+Anthropic folds thinking into `output_tokens` and never reports it apart.
+
+On that first call thinking was 589 of 750 tokens. Anything reading the output
+count alone would show a fifth of what you were charged.
+
+So the convention is recorded **per call**, not assumed globally, and pricing acts
+on what was recorded. Reproduce it yourself with a free key:
+[`tools/gemini_check.py`](tools/gemini_check.py).
+
+### The meter checks its own arithmetic
+
+Where a provider reports its own total, that is the one number qvunex did not
+derive. Every call carries it, the parts are added up and compared, and a
+mismatch prints `UNACCOUNTED` along with a line saying every cost below it is
+short by at least that much.
+
+The gap is recorded, never corrected. We do not know which side is wrong, and
+quietly adjusting a number to make a check pass is how a meter starts lying.
+
 A model with no entry in your rate card is reported as unpriced and left out
 rather than estimated.
 
