@@ -55,9 +55,16 @@ SIZES = [
 MAX_MODEL_LEN = 1024
 
 
+# memory and cpu are explicit because the first rehearsal died here. A 7B model
+# at fp16 streams ~15GB of weights through host RAM on every load, and this
+# script loads once per config on purpose. Batch 1 and 8 survived on the default
+# allocation; batch 32, which adds CUDA-graph capture on top, did not -- and the
+# container was killed mid-traceback rather than raising, which is what a memory
+# kill looks like from the outside.
 @app.function(gpu="L4", image=image, timeout=86400,
+              memory=32768, cpu=8.0,
               volumes={"/out": out_vol, "/hf": hf_vol})
-def run_both_sizes(repeats: int = 1):
+def run_both_sizes(repeats: int = 1, only: str = ""):
     import os
     import subprocess
 
@@ -70,8 +77,11 @@ def run_both_sizes(repeats: int = 1):
 
     print(subprocess.run(["nvidia-smi"], capture_output=True, text=True).stdout)
 
+    wanted = [s for s in SIZES if not only or s[0] == only]
+    print("running sizes:", [s[0] for s in wanted], flush=True)
+
     results = {}
-    for tag, fp16_model, awq_model in SIZES:
+    for tag, fp16_model, awq_model in wanted:
         out_csv = f"/out/rehearsal/l4-{tag}.csv"
         cmd = [
             "python3", "/qvunex/benchmarks/sweep.py",
@@ -107,7 +117,7 @@ def run_both_sizes(repeats: int = 1):
 
 
 @app.local_entrypoint()
-def main(repeats: int = 1):
-    codes = run_both_sizes.remote(repeats=repeats)
+def main(repeats: int = 1, only: str = ""):
+    codes = run_both_sizes.remote(repeats=repeats, only=only)
     print("\nreturn codes:", codes)
     print("fetch with:  modal volume get qvunex-sweeps rehearsal --force")
