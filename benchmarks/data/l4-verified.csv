@@ -1,17 +1,17 @@
-gpu,format,graph_mode,batch,seconds_total,seconds_per_inference
-L4,awq,eager,1,3.8015,3.801500
-L4,awq,eager,8,3.9519,0.493988
-L4,awq,eager,32,4.1149,0.128591
-L4,awq,eager,128,4.3224,0.033769
-L4,awq,graphs,1,0.7501,0.750100
-L4,awq,graphs,8,0.7721,0.096513
-L4,awq,graphs,32,0.9304,0.029075
-L4,awq,graphs,128,1.7123,0.013377
-L4,fp16,eager,1,3.1980,3.198000
-L4,fp16,eager,8,3.4560,0.432000
-L4,fp16,eager,32,3.6100,0.112813
-L4,fp16,eager,128,3.8101,0.029767
-L4,fp16,graphs,1,1.6977,1.697700
-L4,fp16,graphs,8,1.7423,0.217788
-L4,fp16,graphs,32,1.9551,0.061097
-L4,fp16,graphs,128,2.4198,0.018905
+run_id,timestamp_utc,gpu_name,gpu_count,driver_version,vllm_version,torch_version,model,quantization,dtype,enforce_eager,prefix_caching,gpu_memory_utilization,max_model_len,tensor_parallel_size,batch,prompt_tokens_each,max_tokens,ignore_eos,seed,warmup_runs,seconds_total,seconds_per_inference,output_tokens_total,output_tokens_per_second,status,error
+8b8ee2eb559c,2026-09-01T19:32:26+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct,none,auto,False,False,0.9,,1,1,73,128,True,0,1,1.7105,1.710529,128,74.83,ok,
+8b8ee2eb559c,2026-09-01T19:34:38+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct,none,auto,False,False,0.9,,1,8,75,128,True,0,1,1.7638,0.220472,1024,580.57,ok,
+8b8ee2eb559c,2026-09-01T19:35:27+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct,none,auto,False,False,0.9,,1,32,74,128,True,0,1,2.0984,0.065575,4096,1951.95,ok,
+8b8ee2eb559c,2026-09-01T19:36:21+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct,none,auto,False,False,0.9,,1,128,73,128,True,0,1,2.9886,0.023348,16384,5482.25,ok,
+8b8ee2eb559c,2026-09-01T19:37:27+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct,none,auto,True,False,0.9,,1,1,75,128,True,0,1,2.2666,2.266555,128,56.47,ok,
+8b8ee2eb559c,2026-09-01T19:38:36+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct,none,auto,True,False,0.9,,1,8,73,128,True,0,1,2.6836,0.335448,1024,381.58,ok,
+8b8ee2eb559c,2026-09-01T19:39:31+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct,none,auto,True,False,0.9,,1,32,73,128,True,0,1,2.5349,0.079215,4096,1615.85,ok,
+8b8ee2eb559c,2026-09-01T19:40:32+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct,none,auto,True,False,0.9,,1,128,74,128,True,0,1,3.1182,0.024361,16384,5254.25,ok,
+8b8ee2eb559c,2026-09-01T19:41:36+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,auto,False,False,0.9,,1,1,73,128,True,0,1,0.7579,0.757912,128,168.88,ok,
+8b8ee2eb559c,2026-09-01T19:43:19+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,auto,False,False,0.9,,1,8,75,128,True,0,1,0.7831,0.097887,1024,1307.63,ok,
+8b8ee2eb559c,2026-09-01T19:44:09+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,auto,False,False,0.9,,1,32,74,128,True,0,1,1.0491,0.032783,4096,3904.47,ok,
+8b8ee2eb559c,2026-09-01T19:45:01+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,auto,False,False,0.9,,1,128,75,128,True,0,1,2.3047,0.018005,16384,7109.02,ok,
+8b8ee2eb559c,2026-09-01T19:45:53+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,auto,True,False,0.9,,1,1,74,128,True,0,1,2.4749,2.474949,128,51.72,ok,
+8b8ee2eb559c,2026-09-01T19:46:40+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,auto,True,False,0.9,,1,8,74,128,True,0,1,2.5748,0.321847,1024,397.7,ok,
+8b8ee2eb559c,2026-09-01T19:47:27+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,auto,True,False,0.9,,1,32,75,128,True,0,1,2.7691,0.086535,4096,1479.16,ok,
+8b8ee2eb559c,2026-09-01T19:48:15+00:00,NVIDIA L4,1,580.95.05,0.27.1,2.13.0+cu130,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,auto,True,False,0.9,,1,128,72,128,True,0,1,4.5324,0.035409,16384,3614.9,ok,

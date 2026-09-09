@@ -29,6 +29,17 @@ version of this sweep left prefix caching on and had no warmup, and it reported 
 worst-to-best spread of 284x. The corrected spread is **137x**. The directions of
 every finding held; the magnitudes did not.
 
+### `l4-run2.csv` — NVIDIA L4 again, different host, eight days later
+
+Same script, same models, same flags, same card model. A different rented
+machine. Produced 2026-09-09 while rehearsing a two-model-size run; the 7B half
+of that rehearsal failed and is not included here.
+
+This file exists so the reproducibility claim below can be checked rather than
+taken on trust. Column layout differs slightly from `l4-verified.csv` because it
+was produced by a later version of `sweep.py` which also records `repeat` and
+host CPU; the measurement columns are the same.
+
 ### `t4-006.csv` — NVIDIA Tesla T4, 16 configs, with power
 
 Google Colab T4, August 2026, same model pair and settings. Adds board power and
@@ -48,20 +59,40 @@ Header comment lines begin with `#`. Skip them when parsing.
 
 ## Caveats — read these before calibrating anything
 
-**1. One run per config. The eager numbers are not reproducible; the CUDA graph
-numbers are.**
+**1. One run per config. The eager numbers are not reproducible; the fp16 CUDA
+graph numbers are.**
 
-Repeating fp16 batch 1 five times inside one container: CUDA graph timings spread
-**0.23%**, eager timings spread **5.90%**. Running the same config again on a
-*different* rented host a day later: graphs moved **+0.27%**, eager moved
-**+42.1%**.
+`l4-verified.csv` and `l4-run2.csv` are the same 16 configs on the same card
+model, eight days and one rented host apart. Comparing them config by config:
 
-The derived claim "CUDA graphs are 1.33x faster" became "1.88x faster" on the
-second host, from the same code and the same flags.
+| config | 1 Sept | 9 Sept | change |
+|---|---|---|---|
+| fp16 graphs, batch 1 | 1.710529 | 1.700665 | **-0.6%** |
+| fp16 graphs, batch 8 | 0.220472 | 0.221636 | **+0.5%** |
+| fp16 graphs, batch 32 | 0.065575 | 0.064882 | **-1.1%** |
+| fp16 graphs, batch 128 | 0.023348 | 0.023653 | **+1.3%** |
+| fp16 eager, batch 1 | 2.266555 | 3.383616 | **+49.3%** |
+| fp16 eager, batch 8 | 0.335448 | 0.462567 | **+37.9%** |
+| fp16 eager, batch 32 | 0.079215 | 0.119232 | **+50.5%** |
+| fp16 eager, batch 128 | 0.024361 | 0.034148 | **+40.2%** |
 
-So a single constant per config is safe for the graph rows and quietly wrong for
-the eager ones. If you are fitting coefficients, fit graphs and eager separately
-and put an error bar on eager that a 42% host-to-host move would fit inside.
+Every fp16 graph config landed within 1.3%. Every fp16 eager config moved between
+38% and 51%. Across all sixteen configs the mean absolute change was 7.1% for
+graphs and 42.5% for eager.
+
+**AWQ with graphs is the exception and we are not going to pretend otherwise.**
+It moved +2.4%, +2.9%, +23.7% and +24.2% on the four batch sizes. So
+"graphs are reproducible" holds cleanly for fp16 and only partly for AWQ, and
+anyone calibrating an AWQ config from a single run should not assume the 1%
+figure applies to them.
+
+**The headline number moves too.** Worst-to-best spread was 137.5x on the first
+host and 203.4x on the second. If you quote a spread from one run, you are
+quoting a property of that machine as though it were a property of the card.
+
+So a single constant per config is safe for fp16 graph rows and quietly wrong for
+eager ones. If you are fitting coefficients, fit graphs and eager separately, and
+put an error bar on eager wide enough for a 50% host-to-host move.
 
 Working hypothesis, unverified: eager dispatches every operation from Python, so
 it tracks the host CPU; CUDA graphs replay a fixed schedule and barely touch it.
