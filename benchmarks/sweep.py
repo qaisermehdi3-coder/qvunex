@@ -148,6 +148,8 @@ def probe_cpu():
     it is what lets someone else tell those two cases apart in your data.
     """
     model = "unknown"
+
+    # 1. The usual place on x86 Linux.
     try:
         with open("/proc/cpuinfo") as f:
             for line in f:
@@ -157,11 +159,59 @@ def probe_cpu():
     except Exception:
         pass
 
+    # 2. Sandboxed runtimes (gVisor, some container hosts) publish a cpuinfo
+    #    with no "model name" line at all. lscpu reads the same data a
+    #    different way and often still answers. Measured: a Modal L4 host wrote
+    #    cpu_model=unknown to every row of a 16-config sweep, which is the one
+    #    field the eager-variance hypothesis needs.
+    if model == "unknown":
+        try:
+            out = subprocess.run(["lscpu"], capture_output=True, text=True,
+                                 timeout=10).stdout
+            for line in out.splitlines():
+                if line.lower().startswith("model name"):
+                    model = line.split(":", 1)[1].strip()
+                    break
+        except Exception:
+            pass
+
+    # 3. ARM hosts label it differently and often omit it entirely; vendor plus
+    #    family is worse than a brand string but far better than "unknown".
+    if model == "unknown":
+        try:
+            fields = {}
+            with open("/proc/cpuinfo") as f:
+                for line in f:
+                    if ":" in line:
+                        k, v = line.split(":", 1)
+                        fields.setdefault(k.strip().lower(), v.strip())
+            for key in ("model", "hardware", "cpu part", "processor"):
+                if fields.get(key):
+                    model = fields[key]
+                    break
+            else:
+                vendor = fields.get("vendor_id", "")
+                fam, mod = fields.get("cpu family", ""), fields.get("model", "")
+                if vendor:
+                    model = " ".join(x for x in (vendor, f"family {fam}" if fam else "",
+                                                 f"model {mod}" if mod else "") if x)
+        except Exception:
+            pass
+
+    # 4. macOS.
     if model == "unknown":
         try:
             model = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"],
                                    capture_output=True, text=True,
                                    timeout=10).stdout.strip() or "unknown"
+        except Exception:
+            pass
+
+    # 5. Last resort. Often just the architecture, which is still comparable.
+    if model == "unknown":
+        try:
+            import platform
+            model = platform.processor() or platform.machine() or "unknown"
         except Exception:
             pass
 
