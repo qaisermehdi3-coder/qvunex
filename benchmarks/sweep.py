@@ -84,6 +84,10 @@ FIELDS = [
     "driver_version",
     "cpu_model",
     "cpu_cores",
+    "host_cpu_listed",
+    "host_vcpus_listed",
+    "host_ram_gb_listed",
+    "host_provider",
     "vllm_version",
     "torch_version",
     "model",
@@ -358,6 +362,17 @@ def spread_report(rows):
 def drive(args):
     env = probe_gpus()
     env.update(probe_cpu())
+
+    # What the container reports about the host can be masked, remapped or
+    # simply absent, so it is not trustworthy on rented hardware. The provider's
+    # own listing for the machine is the independent record. Pass it in and it
+    # goes into every row beside the probed value, so a reader can see when the
+    # two disagree instead of trusting whichever one happened to be recorded.
+    env["host_cpu_listed"] = args.host_cpu
+    env["host_vcpus_listed"] = args.host_vcpus
+    env["host_ram_gb_listed"] = args.host_ram_gb
+    env["host_provider"] = args.host_provider
+
     run_id = uuid.uuid4().hex[:12]
 
     if env["gpu_count"] == 0:
@@ -506,6 +521,18 @@ def main():
     p.add_argument("--tensor-parallel-size", type=int, default=1)
     p.add_argument("--warmup-runs", type=int, default=1)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--host-cpu", default="",
+                   help="CPU model as the PROVIDER lists it, e.g. "
+                        "'AMD EPYC 7402'. Recorded beside the probed value, "
+                        "because a container's view of the host can be wrong.")
+    p.add_argument("--host-vcpus", default="",
+                   help="vCPU count as the provider lists it. Measured "
+                        "elsewhere: 5 vCPUs vs 24 on the same RTX 4090 gave a "
+                        "1.85x wall-clock difference.")
+    p.add_argument("--host-ram-gb", default="",
+                   help="Host RAM in GB as the provider lists it.")
+    p.add_argument("--host-provider", default="",
+                   help="Who you rented from, e.g. 'vast.ai machine 12345'.")
     p.add_argument("--out", default="qvunex-sweep.csv")
 
     # internal: run exactly one configuration in this process
