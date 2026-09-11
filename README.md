@@ -137,6 +137,26 @@ quietly adjusting a number to make a check pass is how a meter starts lying.
 A model with no entry in your rate card is reported as unpriced and left out
 rather than estimated.
 
+### Where attribution stops
+
+`wrap` catches every call a task makes, including the ones your framework makes
+for you. It does **not** tell you which sub-agent made each one.
+
+If your harness doesn't say who is calling — and most SDKs don't put that on the
+wire — no amount of wrapping invents it. You get every call, correctly totalled,
+with the task it belongs to. You do not get a per-sub-agent breakdown unless you
+label the steps yourself.
+
+So the honest scope:
+
+* **You own your loop** — label the steps and attribution works end to end.
+* **Managed agent platform** — per-session totals are the ceiling. Nobody can do
+  better from outside, and a tool claiming otherwise is guessing.
+
+A call whose owner cannot be determined is recorded as **unattributed** and shown
+on its own line. It is never folded into the parent task, because a total that
+looks complete and isn't is worse than a gap you can see.
+
 ---
 
 ## What you get
