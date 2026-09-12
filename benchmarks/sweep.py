@@ -87,6 +87,7 @@ FIELDS = [
     "host_cpu_listed",
     "host_vcpus_listed",
     "host_ram_gb_listed",
+    "host_disk_listed",
     "host_provider",
     "vllm_version",
     "torch_version",
@@ -371,6 +372,7 @@ def drive(args):
     env["host_cpu_listed"] = args.host_cpu
     env["host_vcpus_listed"] = args.host_vcpus
     env["host_ram_gb_listed"] = args.host_ram_gb
+    env["host_disk_listed"] = args.host_disk
     env["host_provider"] = args.host_provider
 
     run_id = uuid.uuid4().hex[:12]
@@ -531,6 +533,15 @@ def main():
                         "1.85x wall-clock difference.")
     p.add_argument("--host-ram-gb", default="",
                    help="Host RAM in GB as the provider lists it.")
+    p.add_argument("--host-disk", default="",
+                   help="Boot/storage type as the provider lists it: "
+                        "'local NVMe', 'network SSD', 'SATA SSD'. Measured "
+                        "elsewhere: an L40S on a network SSD took 11.5 minutes "
+                        "on its first clip against 1.8-2.7 on local NVMe hosts "
+                        "- all of it disk, none of it the card. Runs that "
+                        "reload weights per config pay this every time, and "
+                        "without the column a cold number looks like a slow "
+                        "card.")
     p.add_argument("--host-provider", default="",
                    help="Who you rented from, e.g. 'vast.ai machine 12345'.")
     p.add_argument("--out", default="qvunex-sweep.csv")
