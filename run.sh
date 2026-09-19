@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# Card 2 of 4: RTX 4090 (stock 24GB), vast.ai machine 20082, datacenter 70142,
-# Maryland US. Same conditions as the 3090 leg.
+# Card 3 of 4: NVIDIA A40 (48GB), vast.ai machine 151322, host 682584, Belgium.
 #
 #   curl -sL https://raw.githubusercontent.com/qaisermehdi3-coder/qvunex/main/run.sh | bash
 #
-# HF_HUB_DISABLE_XET=1 is not optional. Without it the large AWQ shards never
-# finish downloading - HuggingFace routes them through its Xet backend and that
-# path fails from rented hosts with a connection error on /xet-read-token/.
-# That cost a full day on the 3090 leg.
+# Notes for the conditions note on this host:
+#   - host reliability listed at 93.0%, lower than the 3090 (98.9%) and
+#     4090 (99.89%) legs. If the box dies mid-sweep, sweep.py rewrites its CSV
+#     after every config, so completed rows survive.
+#   - storage is a Toshiba SSD at 2583 MB/s, not the NVMe the other two had.
+#   - 64 vCPUs against 13.7 on the 3090 and 32 on the 4090. Recorded per row.
+#
+# HF_HUB_DISABLE_XET=1 is mandatory: without it the large AWQ shards never
+# finish downloading.
 
 set -u
 
@@ -28,8 +32,7 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
 echo "--- disk ---"; df -h / | tail -1
 echo "--- cpu  ---"; lscpu | grep -E "Model name|^CPU\(s\)"
 echo
-echo "VRAM must read 24576 MiB. If it says 49140 this is a modded 48GB card"
-echo "and is NOT the RTX 4090 the client asked for - destroy it and rent again."
+echo "GPU name must read NVIDIA A40. Stop if it says anything else."
 
 export VLLM_ENABLE_V1_MULTIPROCESSING=0
 export HF_HOME=/workspace/hf
@@ -38,8 +41,6 @@ export HF_HUB_DISABLE_XET=1
 
 echo
 echo "== pre-fetching all four models before any timing ================="
-echo "downloading first means a slow or failed fetch cannot be mistaken"
-echo "for a slow card. roughly 25GB."
 python3 - <<'PY'
 from huggingface_hub import snapshot_download
 for m in ["Qwen/Qwen2.5-1.5B-Instruct",
@@ -68,11 +69,11 @@ nohup bash -c '
     --compare-model Qwen/Qwen2.5-1.5B-Instruct-AWQ \
     --compare-quantization awq \
     $COMMON \
-    --host-cpu "AMD EPYC 7B13" \
-    --host-vcpus "32.0" --host-ram-gb "129" \
-    --host-disk "local NVMe" \
-    --host-provider "vast.ai machine 20082 datacenter 70142 Maryland US" \
-    --out /workspace/out/4090-1p5b.csv
+    --host-cpu "AMD EPYC 7662" \
+    --host-vcpus "64.0" --host-ram-gb "513" \
+    --host-disk "Toshiba SSD 2583 MB/s" \
+    --host-provider "vast.ai machine 151322 host 682584 Belgium" \
+    --out /workspace/out/a40-1p5b.csv
   echo "### 1.5B done $(date -u)"
 
   echo "### 7B starting $(date -u)"
@@ -81,15 +82,15 @@ nohup bash -c '
     --compare-model Qwen/Qwen2.5-7B-Instruct-AWQ \
     --compare-quantization awq \
     $COMMON \
-    --host-cpu "AMD EPYC 7B13" \
-    --host-vcpus "32.0" --host-ram-gb "129" \
-    --host-disk "local NVMe" \
-    --host-provider "vast.ai machine 20082 datacenter 70142 Maryland US" \
-    --out /workspace/out/4090-7b.csv
+    --host-cpu "AMD EPYC 7662" \
+    --host-vcpus "64.0" --host-ram-gb "513" \
+    --host-disk "Toshiba SSD 2583 MB/s" \
+    --host-provider "vast.ai machine 151322 host 682584 Belgium" \
+    --out /workspace/out/a40-7b.csv
   echo "### 7B done $(date -u)"
 ' > "$LOG" 2>&1 &
 
 echo "started. pid $!"
 echo
 echo "check progress:   tail -5 $LOG"
-echo "count results:    grep -c \",ok,\" $OUT/4090-*.csv"
+echo "count results:    grep -c \",ok,\" $OUT/a40-*.csv"
