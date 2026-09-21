@@ -118,3 +118,10 @@ Single file, runs each config in a fresh subprocess, records a failed config
 rather than losing the sweep, and takes `--repeats N` to print how much each
 config disagrees with itself. If you run it on hardware not listed here, the CSV
 is welcome — that is the whole point of it being one file.
+
+
+## l40s-own/
+
+An L40S measured on my own account rather than for a client. 96 timed runs, three repeats per configuration, all in one session on one machine. Conditions note is in that folder.
+
+Headline: CUDA-graph configs repeated within 0.7% on average, eager configs within 37.3%. 12 of 48 eager runs came in more than 20% above their own config's fastest run. 0 of 48 graph runs did.
