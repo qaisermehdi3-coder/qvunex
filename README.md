@@ -8,6 +8,19 @@ the bill doubles, they can't say why.
 
 This tells you.
 
+Two ways to use it. Pick whichever you are comfortable with.
+
+One file, no install. Standard library only. No network code in it — grep it. It writes JSON lines to a file on your own disk and nothing leaves the machine.
+
+https://raw.githubusercontent.com/qaisermehdi3-coder/qvunex/main/qvunex_single.py
+
+Run it with no API key and no network first, to see what the output looks like:
+
+python3 qvunex_single.py --demo
+
+
+Or the package, if you would rather:
+
 ```bash
 pip install qvunex
 ```
