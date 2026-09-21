@@ -1,19 +1,26 @@
 #!/usr/bin/env bash
-# Card 4 of 4: NVIDIA L40S, vast.ai machine 150627, host 640216, Romania.
+# L40S — Qaiser's OWN run, 21 September 2026. Not client work.
+# vast.ai instance 51944671, machine 150627, host 640216, Romania.
 #
 #   curl -sL https://raw.githubusercontent.com/qaisermehdi3-coder/qvunex/main/run.sh | bash
 #
-# Conditions-note caveats for this leg, all of which go in the writeup:
-#   - 8 vCPUs. The other three legs had 13.7 (3090), 32 (4090) and 64 (A40).
-#     Eight is the low end, and an outside measurement found the same RTX 4090
-#     ran 1.85x slower in wall clock on a 5-vCPU host than a 24-vCPU one. So the
-#     eager rows on this card may carry host-CPU cost that is not the card's.
-#     CUDA-graph rows are far less sensitive to this; that is the whole point of
-#     the reproducibility finding. Report the eager rows with that caveat.
-#   - storage is a Samsung MZ7L, a SATA SSD at 2866 MB/s, not NVMe.
-#   - host reliability 96.1%.
-#   - only one L40S was listed on vast.ai at the time, so there was no
-#     better-matched host to choose.
+# Why this run exists: the L40S already in the corpus belongs to a client and
+# cannot be published without their say-so. This one is measured on the same
+# script and the same flags, on Qaiser's own account, so the numbers are his to
+# publish. It is the same physical machine (150627), so it is a card he owns
+# outright, not an independent second host. That limit goes in the writeup.
+#
+# Conditions for the note:
+#   - 8.0 of 64 vCPU, Intel Xeon Silver 4514Y. Eight is the low end of the range
+#     where the host-CPU effect is strongest, so the eager rows may carry host
+#     cost that is not the card's. CUDA-graph rows are far less sensitive.
+#   - storage Samsung MZ7L37T6, SATA SSD at 2947 MB/s, not NVMe.
+#   - host reliability 97.2%.
+#   - only one L40S was listed on vast.ai at the time, again.
+#
+# STANDING RULE: the moment grep shows 48/48, download the CSVs and DESTROY the
+# instance in the same sitting. Never stop it — stopped instances keep charging
+# for storage.
 
 set -u
 
@@ -64,18 +71,15 @@ echo "== starting sweeps in background =================================="
 nohup bash -c '
   set -u
   COMMON="--batches 1,8,32,128 --modes eager,graphs --max-model-len 1024 --repeats 3"
+  HOST="--host-cpu Intel_Xeon_Silver_4514Y --host-vcpus 8.0 --host-ram-gb 64 --host-disk Samsung_MZ7L37T6_SATA_2947MBps --host-provider vast.ai_m150627_h640216_Romania_own"
 
   echo "### 1.5B starting $(date -u)"
   python3 /qvunex/benchmarks/sweep.py \
     --model Qwen/Qwen2.5-1.5B-Instruct \
     --compare-model Qwen/Qwen2.5-1.5B-Instruct-AWQ \
     --compare-quantization awq \
-    $COMMON \
-    --host-cpu "Intel Xeon Silver 4-series" \
-    --host-vcpus "8.0" --host-ram-gb "64" \
-    --host-disk "Samsung MZ7L SATA SSD 2866 MB/s" \
-    --host-provider "vast.ai machine 150627 host 640216 Romania" \
-    --out /workspace/out/l40s-1p5b.csv
+    $COMMON $HOST \
+    --out /workspace/out/l40s-own-1p5b.csv
   echo "### 1.5B done $(date -u)"
 
   echo "### 7B starting $(date -u)"
@@ -83,16 +87,14 @@ nohup bash -c '
     --model Qwen/Qwen2.5-7B-Instruct \
     --compare-model Qwen/Qwen2.5-7B-Instruct-AWQ \
     --compare-quantization awq \
-    $COMMON \
-    --host-cpu "Intel Xeon Silver 4-series" \
-    --host-vcpus "8.0" --host-ram-gb "64" \
-    --host-disk "Samsung MZ7L SATA SSD 2866 MB/s" \
-    --host-provider "vast.ai machine 150627 host 640216 Romania" \
-    --out /workspace/out/l40s-7b.csv
+    $COMMON $HOST \
+    --out /workspace/out/l40s-own-7b.csv
   echo "### 7B done $(date -u)"
 ' > "$LOG" 2>&1 &
 
 echo "started. pid $!"
 echo
 echo "check progress:   tail -5 $LOG"
-echo "count results:    grep -c \",ok,\" $OUT/l40s-*.csv"
+echo "count results:    grep -c \",ok,\" $OUT/l40s-own-*.csv"
+echo
+echo "48 and 48 means done. Download both CSVs, then DESTROY the instance."
