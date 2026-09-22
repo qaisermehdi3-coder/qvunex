@@ -74,10 +74,29 @@ CACHE_READ_MULT = 0.10
 # ---------------------------------------------------------------------------
 # task / step attribution
 # ---------------------------------------------------------------------------
-# A ContextVar holding a tuple of (label, id) pairs, outermost first. It
-# inherits into threads and asyncio tasks automatically. It does NOT inherit
-# into new processes - if you fan out with multiprocessing you must pass the id
-# yourself.
+# A ContextVar holding a tuple of (label, id) pairs, outermost first.
+#
+# WHAT INHERITS, tested rather than assumed:
+#
+#   asyncio tasks   YES. Each task copies the context at creation, so concurrent
+#                   tasks keep separate labels and cannot leak into each other.
+#   threads         NO. A new thread starts with a fresh, empty context, so it
+#                   sees no task and no step. Calls made in a worker thread are
+#                   recorded with task=None and land in the "outside any task"
+#                   line - honest, but not attributed.
+#   processes       NO.
+#
+# The thread case matters because many frameworks run tool calls and sub-agent
+# calls on a ThreadPoolExecutor. If you own the thread, wrap the callable with
+# contextvars.copy_context().run(fn) and the labels carry over. If a framework
+# owns the pool, you cannot, so pass the id yourself:
+#
+#     tid = ...                      # captured in the parent
+#     with task("my task", task_id=tid):
+#         ...
+#
+# Exceptions are safe in all cases: every label is popped in a finally block, so
+# a throw inside a step restores the stack rather than leaving a label stuck.
 
 _stack: contextvars.ContextVar[tuple] = contextvars.ContextVar("qvunex_stack", default=())
 
