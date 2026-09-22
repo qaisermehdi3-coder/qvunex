@@ -8,7 +8,8 @@ Measures what each LLM call actually costs and what a finished task costs.
     ------------
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
-    this is one file you can read in ten minutes and paste into your own tree.
+    this is one file you can read in one sitting and paste into your own tree:
+    about 650 lines, a third of them comments saying why.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
