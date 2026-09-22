@@ -459,26 +459,43 @@ def report(path=None, prices=None, out=sys.stdout):
             untasked.append(c)
 
     if tasks:
+        # A task only counts as finished if its LAST call succeeded. A task that
+        # crashed part way is not a finished task that happened to be cheap -
+        # averaging it in at its partial cost drags the mean down silently.
+        # Found on live Gemini data: one task hit a rate limit on its first
+        # call, was averaged in at $0, and understated the mean by a third.
         by_name = {}
+        failed = {}
         for (name, _tid), cs in tasks.items():
             cost = sum(cost_of(c, cards) or 0 for c in cs)
-            by_name.setdefault(name, []).append((cost, len(cs)))
-        w()
-        w("-" * 68)
-        w("  COST PER FINISHED TASK")
-        w("-" * 68)
-        w("  %-22s %4s %10s %10s %10s %7s" % ("task", "n", "mean", "p50", "p95", "calls"))
-        for name, rows in sorted(by_name.items(), key=lambda kv: -sum(r[0] for r in kv[1])):
-            costs = [r[0] for r in rows]
-            w("  %-22s %4d %10s %10s %10s %7.1f" % (
-                name[:22], len(costs),
-                f"${statistics.mean(costs):.4f}",
-                f"${_pct(costs, 0.50):.4f}",
-                f"${_pct(costs, 0.95):.4f}",
-                statistics.mean([r[1] for r in rows])))
-        w()
-        w("  The mean and the p95 are different questions. An average hides the")
-        w("  tasks that actually hurt.")
+            last = max(cs, key=lambda c: c.get("t", 0))
+            if last.get("status") == "ok":
+                by_name.setdefault(name, []).append((cost, len(cs)))
+            else:
+                failed.setdefault(name, []).append((cost, len(cs)))
+        if by_name:
+            w()
+            w("-" * 68)
+            w("  COST PER FINISHED TASK")
+            w("-" * 68)
+            w("  %-22s %4s %10s %10s %10s %7s" % ("task", "n", "mean", "p50", "p95", "calls"))
+            for name, rows in sorted(by_name.items(), key=lambda kv: -sum(r[0] for r in kv[1])):
+                costs = [r[0] for r in rows]
+                w("  %-22s %4d %10s %10s %10s %7.1f" % (
+                    name[:22], len(costs),
+                    f"${statistics.mean(costs):.4f}",
+                    f"${_pct(costs, 0.50):.4f}",
+                    f"${_pct(costs, 0.95):.4f}",
+                    statistics.mean([r[1] for r in rows])))
+            w()
+            w("  The mean and the p95 are different questions. An average hides the")
+            w("  tasks that actually hurt.")
+        if failed:
+            w()
+            for name, rows in sorted(failed.items()):
+                w("  %d '%s' task(s) did not finish, $%.4f spent before failing —"
+                  % (len(rows), name[:22], sum(r[0] for r in rows)))
+            w("  counted apart, never averaged into the finished ones")
 
     if untasked:
         cost = sum(cost_of(c, cards) or 0 for c in untasked)
@@ -523,6 +540,14 @@ def report(path=None, prices=None, out=sys.stdout):
             w("  pure surcharge over not caching at all.")
 
     # ---- retries and fallbacks -------------------------------------------
+    errors = [c for c in calls if c.get("status") == "error"]
+    if errors:
+        w()
+        w("  errors                %d call(s) failed — included in the call counts"
+          % len(errors))
+        w("                        above, but they returned no usage, so they cost")
+        w("                        nothing that can be measured here")
+
     retries = [c for c in calls if (c.get("attempt") or 1) > 1]
     if retries:
         cost = sum(cost_of(c, cards) or 0 for c in retries)
