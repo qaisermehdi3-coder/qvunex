@@ -181,12 +181,15 @@ def extract_usage(response):
         out["cache_write"] = 0
         thoughts = _get(u, "thoughts_token_count") or 0
         out["tokens_reasoning"] = thoughts
-        # Measured against gemini-3.6-flash, three calls, using Google's own
-        # reported total:
-        #     17 + 144 + 589 =   750
-        #  4,632 +  26 + 236 = 4,894
-        #  4,632 +  32 + 238 = 4,902
+        # Measured on live gemini-3.6-flash calls, 22 September 2026, against
+        # Google's own reported total:
+        #     17 +   3 + 135 =   155
+        #     19 +  81 + 776 =   876
+        #     15 + 397 + 923 = 1,335
         # total = prompt + candidates + thoughts, exactly, every time.
+        # Worth seeing the first one: the answer was 3 tokens and the thinking
+        # was 135. Anything charting candidates_token_count as the output cost
+        # reports 3 where 138 was billed.
         # So on Google, thinking is billed ON TOP of the output count.
         out["reasoning_billed"] = EXTRA if thoughts else INCLUDED
         out["tokens_total_reported"] = _get(u, "total_token_count")
