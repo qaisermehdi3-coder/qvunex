@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 1,490 lines, of which about 500 are the --selftest at the bottom.
+    about 1,510 lines, of which about 520 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -725,10 +725,21 @@ def report(path=None, prices=None, out=sys.stdout):
     if ts:
         fmt = lambda x: time.strftime("%Y-%m-%d %H:%M", time.gmtime(x))
         w(f"  period        {fmt(min(ts))} to {fmt(max(ts))} UTC")
-    known_total = sum(cost_of(c, cards) or 0 for c in calls)
-    gaps = any(c.get("usage_missing") or (c.get("status") == "ok" and c.get("model") not in cards)
-               for c in calls)
-    w(f"  known cost    ${known_total:.4f}" + ("  (at least - some costs unknown, see below)" if gaps else ""))
+    # Every dollar figure in this report goes through money(): a call whose
+    # cost is unknown (no usage came back, or the model has no price) adds
+    # nothing to the sum, so the figure says how many such calls it hides.
+    # A sum printed without that note would read as complete when it is not.
+    def unknown(c):
+        return c.get("status") == "ok" and (c.get("usage_missing")
+                                            or cost_of(c, cards) is None)
+
+    def money(cs):
+        cs = list(cs)
+        known = sum(cost_of(c, cards) or 0 for c in cs)
+        n = sum(1 for c in cs if unknown(c))
+        return f"${known:.4f}" + (f" +{n} unknown" if n else "")
+
+    w(f"  known cost    {money(calls)}")
     w(f"                check it against your provider's own usage page for the")
     w(f"                same account and the same period")
 
@@ -772,7 +783,7 @@ def report(path=None, prices=None, out=sys.stdout):
                 complete = len(known) == len(ok)
                 by_name.setdefault(name, []).append((cost, len(cs), complete))
             else:
-                failed.setdefault(name, []).append((cost, len(cs)))
+                failed.setdefault(name, []).append(cs)
         if by_name:
             w()
             w("-" * 68)
@@ -787,10 +798,10 @@ def report(path=None, prices=None, out=sys.stdout):
                 if partial_rows:
                     partial[name] = partial_rows
                 k, n = coverage[name]
-                money = ((f"${statistics.mean(costs):.4f}", f"${_pct(costs, 0.50):.4f}",
+                cols = ((f"${statistics.mean(costs):.4f}", f"${_pct(costs, 0.50):.4f}",
                           f"${_pct(costs, 0.95):.4f}") if costs else ("-", "-", "-"))
                 w("  %-20s %4d %9s %9s %9s %6.1f %5d%%" % (
-                    name[:20], len(costs), *money,
+                    name[:20], len(costs), *cols,
                     statistics.mean([r[1] for r in rows]),
                     int(100 * k / n) if n else 0))
             w()
@@ -808,15 +819,14 @@ def report(path=None, prices=None, out=sys.stdout):
         if failed:
             w()
             for name, rows in sorted(failed.items()):
-                w("  %d '%s' task(s) did not finish, $%.4f spent before failing —"
-                  % (len(rows), name[:22], sum(r[0] for r in rows)))
+                w("  %d '%s' task(s) did not finish, %s spent before failing —"
+                  % (len(rows), name[:22], money(c for cs in rows for c in cs)))
             w("  counted apart, never averaged into the finished ones")
 
     if untasked:
-        cost = sum(cost_of(c, cards) or 0 for c in untasked)
         w()
-        w("  %d call(s) outside any task, $%.4f — counted apart, never spread" %
-          (len(untasked), cost))
+        w("  %d call(s) outside any task, %s — counted apart, never spread" %
+          (len(untasked), money(untasked)))
 
     # ---- attribution ------------------------------------------------------
     inside = [c for c in calls if c.get("task_id")]
@@ -830,8 +840,7 @@ def report(path=None, prices=None, out=sys.stdout):
         for c in inside:
             owners.setdefault(c.get("owner") or "UNATTRIBUTED", []).append(c)
         for owner, cs in sorted(owners.items(), key=lambda kv: -sum(cost_of(c, cards) or 0 for c in kv[1])):
-            cost = sum(cost_of(c, cards) or 0 for c in cs)
-            w("  %-30s %6d calls   $%.4f" % (owner[:30], len(cs), cost))
+            w("  %-30s %6d calls   %s" % (owner[:30], len(cs), money(cs)))
         if unattributed:
             w()
             w("  UNATTRIBUTED means the call happened inside a task but nothing")
@@ -865,10 +874,9 @@ def report(path=None, prices=None, out=sys.stdout):
 
     retries = [c for c in calls if (c.get("attempt") or 1) > 1]
     if retries:
-        cost = sum(cost_of(c, cards) or 0 for c in retries)
         w()
-        w("  retries               %d call(s), $%.4f — the same work paid for twice"
-          % (len(retries), cost))
+        w("  retries               %d call(s), %s — the same work paid for twice"
+          % (len(retries), money(retries)))
 
     # ---- honesty ----------------------------------------------------------
     missing = [c for c in calls if c.get("usage_missing")]
@@ -885,9 +893,10 @@ def report(path=None, prices=None, out=sys.stdout):
             w("  %-30s %6d calls   cost unknown" % (owner[:30], n))
         w()
         w("  These calls succeeded but the provider returned no usage object.")
-        w("  They are shown above at $0 because nothing was reported, not because")
-        w("  they were free. Every total above is a lower bound. A low number is")
-        w("  the one nobody audits, so it is printed here rather than left silent.")
+        w("  Nothing was reported, which is not the same as free. Every dollar")
+        w("  figure above that includes them says '+N unknown' and is only a")
+        w("  lower bound. A low number is the one nobody audits, so it is")
+        w("  marked rather than left silent.")
 
     if unaccounted:
         w()
@@ -1424,6 +1433,22 @@ def _selftest(out=sys.stdout):
         check("a workflow with unknown-cost calls is not averaged in, so it cannot look cheaper",
               row and row[0].split()[2] == "0" and row[0].rstrip().endswith("50%")
               and "finished with calls of unknown cost" in txt)
+
+        p = fresh()
+        with task("t"):
+            with step("draft"):
+                wrap(fake({"input_tokens": 1000, "output_tokens": 100})).messages.create(model="anth")
+                wrap(fake(None)).messages.create(model="anth")
+        wrap(fake({"input_tokens": 1000, "output_tokens": 100})).messages.create(model="no-price")
+        txt = text_of(p, prices)
+        lines = txt.splitlines()
+        draft = [l for l in lines if l.strip().startswith("draft")]
+        outside = [l for l in lines if "outside any task" in l and "call(s)" in l]
+        header = [l for l in lines if l.strip().startswith("known cost")]
+        check("every dollar figure says how many calls of unknown cost it leaves out",
+              draft and draft[0].rstrip().endswith("+1 unknown")
+              and outside and "+1 unknown" in outside[0]
+              and header and header[0].rstrip().endswith("+2 unknown"))
 
         # -- the claim anyone can grep -------------------------------------
         w()
