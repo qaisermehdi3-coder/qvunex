@@ -75,11 +75,16 @@ described above.
 - **Calls made on worker threads** land outside any task on Python 3.10 to 3.13
   unless you pass the task along. The file explains how.
 - **Prices** are published list prices unless you tell me your negotiated rates.
-- **Provider coverage, honestly:** tested live against Gemini. Anthropic and
-  OpenAI are handled from their documented usage shape and checked by
-  `--selftest`, but not yet against a live account. If you are on one of those,
-  you would be the first, and I will check your first report line by line
-  against your provider's own dashboard before telling you anything.
+- **OpenAI chat streams** carry no usage unless you pass
+  `stream_options={"include_usage": True}`. Without it, those calls show up as
+  usage missing and the note says how many. They are never counted as free.
+- **Provider coverage, honestly:** plain Gemini calls are tested live.
+  Streaming and async calls, Anthropic, OpenAI (Chat Completions and the
+  Responses API) and LangChain's usage are handled from each one's documented
+  usage shape and checked by `--selftest`, but not yet against a live account.
+  If you are on one of those, you would be the first, and I will check your
+  first report line by line against your provider's own dashboard before
+  telling you anything.
 
 ## Price
 

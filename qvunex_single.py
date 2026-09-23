@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 920 lines, of which about 230 are the --selftest at the bottom.
+    about 1,430 lines, of which about 490 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -26,6 +26,16 @@ Measures what each LLM call actually costs and what a finished task costs.
                 ...
 
         report()          # prints cost per finished task
+
+    Async clients and streams are covered: an awaited call is timed until
+    it returns, and a stream is recorded once, when you finish reading it,
+    with the usage from its last chunk. One provider needs your help:
+    OpenAI chat streams carry no usage unless you ask for it,
+
+        client.chat.completions.create(..., stream=True,
+                                       stream_options={"include_usage": True})
+
+    Without that, those calls are marked usage missing, never counted as $0.
 
     Try it with no API key and no network:
 
@@ -53,6 +63,7 @@ Measures what each LLM call actually costs and what a finished task costs.
 from __future__ import annotations
 
 import contextvars
+import inspect
 import json
 import os
 import statistics
@@ -167,8 +178,29 @@ def extract_usage(response):
 
     out = {}
 
+    # ---- OpenAI Responses API, and LangChain's usage_metadata ------------
+    # Both say input_tokens, like Anthropic, but mean something different:
+    # here input_tokens INCLUDES cached tokens, and reasoning is a subset of
+    # output_tokens. Anthropic never sends total_tokens or a *_details
+    # breakdown, so that is what tells them apart. Read as Anthropic, cached
+    # tokens would be billed again at the full input price.
+    if _get(u, "input_tokens") is not None and any(
+            _get(u, k) is not None for k in ("total_tokens", "input_tokens_details",
+                                             "input_token_details", "output_tokens_details",
+                                             "output_token_details")):
+        din = _get(u, "input_tokens_details", "input_token_details") or {}
+        dout = _get(u, "output_tokens_details", "output_token_details") or {}
+        out["cache_read"] = _get(din, "cached_tokens", "cache_read") or 0
+        out["cache_write"] = _get(din, "cache_creation") or 0
+        out["tokens_in"] = max(0, (_get(u, "input_tokens") or 0)
+                               - out["cache_read"] - out["cache_write"])
+        out["tokens_out"] = _get(u, "output_tokens") or 0
+        out["tokens_reasoning"] = _get(dout, "reasoning_tokens", "reasoning") or 0
+        out["reasoning_billed"] = INCLUDED
+        out["tokens_total_reported"] = _get(u, "total_tokens")
+
     # ---- Anthropic shape -------------------------------------------------
-    if _get(u, "input_tokens") is not None:
+    elif _get(u, "input_tokens") is not None:
         out["tokens_in"] = _get(u, "input_tokens") or 0
         out["tokens_out"] = _get(u, "output_tokens") or 0
         out["cache_write"] = _get(u, "cache_creation_input_tokens") or 0
@@ -289,8 +321,11 @@ def configure(path=None, disabled=None):
         _rec.disabled = bool(disabled)
 
 
-def _record(model, usage, seconds, status, attempt):
-    task_name, task_id, owner = _current()
+def _record(model, usage, seconds, status, attempt, ctx=None):
+    # ctx is the (task, id, owner) captured when the call was MADE. A stream or
+    # an awaited call can finish somewhere else, and must still be credited to
+    # the step that started it.
+    task_name, task_id, owner = ctx if ctx is not None else _current()
     rec = {
         "type": "call",
         "schema": SCHEMA_VERSION,
@@ -325,8 +360,8 @@ def _record(model, usage, seconds, status, attempt):
 # request fans out into six sub-agent calls.
 
 CALL_METHODS = (
-    "create", "acreate",
-    "generate_content", "generate_content_async",
+    "create", "acreate", "stream",
+    "generate_content", "generate_content_async", "generate_content_stream",
     "generate", "complete", "invoke",
 )
 
@@ -357,16 +392,245 @@ class _Proxy:
 def _timed(fn, path):
     def inner(*a, **k):
         model = k.get("model") or "unknown"
-        t0 = time.perf_counter()
         attempt = int(k.pop("_qvunex_attempt", 1))
+        ctx = _current()
+        t0 = time.perf_counter()
         try:
             resp = fn(*a, **k)
         except Exception:
-            _record(model, None, time.perf_counter() - t0, "error", attempt)
+            _record(model, None, time.perf_counter() - t0, "error", attempt, ctx)
             raise          # your exception propagates untouched
-        _record(model, extract_usage(resp), time.perf_counter() - t0, "ok", attempt)
-        return resp
+        if inspect.isawaitable(resp):
+            # An async client returns a coroutine. Timing it here would time
+            # the set-up, not the call, and its usage is not there yet.
+            return _await_and_record(resp, model, attempt, ctx)
+        return _finish(resp, model, t0, attempt, ctx)
     return inner
+
+
+async def _await_and_record(aw, model, attempt, ctx):
+    t0 = time.perf_counter()
+    try:
+        resp = await aw
+    except Exception:
+        _record(model, None, time.perf_counter() - t0, "error", attempt, ctx)
+        raise
+    return _finish(resp, model, t0, attempt, ctx)
+
+
+def _is_stream(obj):
+    if isinstance(obj, (str, bytes, dict, list, tuple)):
+        return False
+    return any(hasattr(obj, n) for n in ("__next__", "__anext__", "__aiter__"))
+
+
+def _finish(resp, model, t0, attempt, ctx):
+    usage = extract_usage(resp)
+    if usage is None:
+        if _is_stream(resp):
+            # Usage arrives in the chunks, if at all, so record when it ends.
+            return _MeteredStream(resp, model, t0, attempt, ctx)
+        if hasattr(resp, "__enter__") or hasattr(resp, "__aenter__"):
+            # A helper that returns a context manager around a stream,
+            # e.g. Anthropic's client.messages.stream(...).
+            return _MeteredManager(resp, model, t0, attempt, ctx)
+    _record(model, usage, time.perf_counter() - t0, "ok", attempt, ctx)
+    return resp
+
+
+# ---------------------------------------------------------------------------
+# streams
+# ---------------------------------------------------------------------------
+# A streamed call is recorded ONCE, when the stream ends, with the time it
+# actually took and the usage seen in its chunks:
+#   OpenAI   the final chunk carries usage, but only if you pass
+#            stream_options={"include_usage": True}. Without it there is none.
+#   Google   each chunk carries usage_metadata; the last one is the total.
+#   Anthropic  message_start carries input usage, message_delta the output.
+# If no usage ever arrives, the call is recorded as usage missing - cost
+# unknown, not zero. A stream you stop reading early is recorded when it is
+# closed or garbage collected, usually without usage, because the final chunk
+# was never read.
+
+_ANTHROPIC_USAGE_KEYS = ("input_tokens", "output_tokens",
+                         "cache_creation_input_tokens", "cache_read_input_tokens")
+
+
+class _MeteredStream:
+    def __init__(self, inner, model, t0, attempt, ctx):
+        self._inner, self._model, self._t0 = inner, model, t0
+        self._attempt, self._ctx = attempt, ctx
+        self._usage, self._acc, self._done = None, {}, False
+        self._it = self._ait = None
+
+    def _see(self, chunk):
+        u = extract_usage(chunk)
+        if u is None:
+            # OpenAI Responses API: usage rides on the response.completed event
+            inner = _get(chunk, "response")
+            if inner is not None:
+                u = extract_usage(inner)
+        if u is not None:
+            self._usage = u              # the last usage seen is the total
+            return
+        kind = _get(chunk, "type")
+        if kind == "message_start":
+            src = _get(_get(chunk, "message"), "usage")
+        elif kind == "message_delta":
+            src = _get(chunk, "usage")
+        else:
+            return
+        for key in _ANTHROPIC_USAGE_KEYS:
+            v = _get(src, key)
+            if v is not None:
+                self._acc[key] = v
+
+    def _close(self, status="ok"):
+        if self._done:
+            return
+        self._done = True
+        usage = self._usage
+        if usage is None and "input_tokens" in self._acc:
+            usage = extract_usage({"usage": dict(self._acc)})
+        if usage is None:
+            # Anthropic's `for text in stream.text_stream` reads the events
+            # without passing them through here. The SDK keeps its own running
+            # message; use it only once stop_reason is set, because before the
+            # final event its output count is a partial that would read low.
+            try:
+                snap = getattr(self._inner, "current_message_snapshot", None)
+            except Exception:
+                snap = None
+            if snap is not None and _get(snap, "stop_reason") is not None:
+                usage = extract_usage(snap)
+        _record(self._model, usage, time.perf_counter() - self._t0,
+                status, self._attempt, self._ctx)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._it is None:
+            self._it = self._inner if hasattr(self._inner, "__next__") else iter(self._inner)
+        try:
+            chunk = next(self._it)
+        except StopIteration:
+            self._close()
+            raise
+        except Exception:
+            self._close("error")
+            raise
+        self._see(chunk)
+        return chunk
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self._ait is None:
+            self._ait = self._inner.__aiter__() if hasattr(self._inner, "__aiter__") else self._inner
+        try:
+            chunk = await self._ait.__anext__()
+        except StopAsyncIteration:
+            self._close()
+            raise
+        except Exception:
+            self._close("error")
+            raise
+        self._see(chunk)
+        return chunk
+
+    def __enter__(self):
+        if hasattr(self._inner, "__enter__"):
+            self._inner.__enter__()
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            if hasattr(self._inner, "__exit__"):
+                return self._inner.__exit__(*exc)
+        finally:
+            self._close("error" if exc and exc[0] else "ok")
+
+    async def __aenter__(self):
+        if hasattr(self._inner, "__aenter__"):
+            await self._inner.__aenter__()
+        return self
+
+    async def __aexit__(self, *exc):
+        try:
+            if hasattr(self._inner, "__aexit__"):
+                return await self._inner.__aexit__(*exc)
+        finally:
+            self._close("error" if exc and exc[0] else "ok")
+
+    def close(self):
+        try:
+            c = getattr(self._inner, "close", None)
+            if c:
+                c()
+        finally:
+            self._close()
+
+    def __getattr__(self, name):
+        attr = getattr(self._inner, name)
+        if name.startswith("get_final") and callable(attr):
+            def final(*a, **k):
+                out = attr(*a, **k)
+                u = extract_usage(out)
+                if u is not None:
+                    self._usage = u
+                return out
+            return final
+        return attr
+
+    def __del__(self):
+        try:
+            self._close()
+        except Exception:
+            pass
+
+
+class _MeteredManager:
+    """A context manager that yields a stream (Anthropic's messages.stream)."""
+    def __init__(self, inner, model, t0, attempt, ctx):
+        self._inner, self._args = inner, (model, t0, attempt, ctx)
+        self._stream = None
+
+    def __enter__(self):
+        self._stream = _MeteredStream(self._inner.__enter__(), *self._args)
+        return self._stream
+
+    def __exit__(self, *exc):
+        try:
+            return self._inner.__exit__(*exc)
+        finally:
+            if self._stream is not None:
+                self._stream._close("error" if exc and exc[0] else "ok")
+
+    async def __aenter__(self):
+        self._stream = _MeteredStream(await self._inner.__aenter__(), *self._args)
+        return self._stream
+
+    async def __aexit__(self, *exc):
+        try:
+            return await self._inner.__aexit__(*exc)
+        finally:
+            if self._stream is not None:
+                self._stream._close("error" if exc and exc[0] else "ok")
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    def __del__(self):
+        # Never entered: the call still happened, so it is still recorded,
+        # as cost unknown rather than dropped.
+        try:
+            if self._stream is None:
+                model, t0, attempt, ctx = self._args
+                _record(model, None, time.perf_counter() - t0, "ok", attempt, ctx)
+        except Exception:
+            pass
 
 
 def wrap(client):
@@ -695,8 +959,16 @@ def _selftest(out=sys.stdout):
         return p
 
     def calls_in(p):
+        # nothing recorded means no file at all - that is a failure to report,
+        # not a reason for the selftest itself to crash
+        if not os.path.exists(p):
+            return []
         with open(p) as f:
             return [r for r in (json.loads(l) for l in f) if r.get("type") == "call"]
+
+    def first(p):
+        cs = calls_in(p)
+        return cs[0] if cs else {}
 
     def text_of(p, prices):
         buf = io.StringIO()
@@ -737,7 +1009,7 @@ def _selftest(out=sys.stdout):
         wrap(fake({"input_tokens": 100, "output_tokens": 50,
                    "cache_creation_input_tokens": 400,
                    "cache_read_input_tokens": 1000})).messages.create(model="anth")
-        c = calls_in(p)[0]
+        c = first(p)
         check("anthropic: input excludes cache, cache priced on its own",
               close(cost_of(c, cards), (100*3 + 50*15 + 400*3.75 + 1000*0.30) / 1e6))
 
@@ -745,7 +1017,7 @@ def _selftest(out=sys.stdout):
         wrap(fake({"prompt_tokens": 1000, "completion_tokens": 200, "total_tokens": 1200,
                    "prompt_tokens_details": {"cached_tokens": 800},
                    "completion_tokens_details": {"reasoning_tokens": 150}})).messages.create(model="oai")
-        c = calls_in(p)[0]
+        c = first(p)
         check("openai: cached tokens not counted twice, reasoning not added again",
               close(cost_of(c, cards), (200*1 + 800*0.10 + 200*4) / 1e6))
 
@@ -753,14 +1025,34 @@ def _selftest(out=sys.stdout):
         wrap(fake({"prompt_token_count": 10, "candidates_token_count": 5,
                    "thoughts_token_count": 20, "total_token_count": 35},
                   attr="usage_metadata")).messages.create(model="goog")
-        c = calls_in(p)[0]
-        check("google: thinking billed on top of output",
-              close(cost_of(c, cards), (10*1 + 5*10 + 20*10) / 1e6))
+        c = first(p)
+        check("google: thinking billed on top of output, and the parts match google's total",
+              close(cost_of(c, cards), (10*1 + 5*10 + 20*10) / 1e6)
+              and "tokens_unaccounted" not in c)
+
+        p = fresh()
+        wrap(fake({"input_tokens": 1000, "output_tokens": 300, "total_tokens": 1300,
+                   "input_tokens_details": {"cached_tokens": 800},
+                   "output_tokens_details": {"reasoning_tokens": 200}})).messages.create(model="oai")
+        c = first(p)
+        check("openai responses api: says input_tokens like anthropic, but cache is inside it",
+              close(cost_of(c, cards), (200*1 + 800*0.10 + 300*4) / 1e6)
+              and c.get("tokens_reasoning") == 200 and "tokens_unaccounted" not in c)
+
+        p = fresh()
+        wrap(fake({"input_tokens": 350, "output_tokens": 240, "total_tokens": 590,
+                   "input_token_details": {"cache_read": 100, "cache_creation": 200},
+                   "output_token_details": {"reasoning": 200}},
+                  attr="usage_metadata")).messages.create(model="anth")
+        c = first(p)
+        check("langchain usage_metadata: cache read and write taken out of input, not billed twice",
+              close(cost_of(c, cards), (50*3 + 240*15 + 200*3.75 + 100*0.30) / 1e6)
+              and "tokens_unaccounted" not in c)
 
         p = fresh()
         wrap(fake({"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 175})
              ).messages.create(model="oai")
-        c = calls_in(p)[0]
+        c = first(p)
         check("provider total that does not match the parts is recorded as a gap",
               c.get("tokens_unaccounted") == 25, f"gap {c.get('tokens_unaccounted')}")
 
@@ -821,6 +1113,228 @@ def _selftest(out=sys.stdout):
         w("  INFO  a plain new thread %s the task label on this Python"
           % ("INHERITS" if inherits else "does NOT inherit"))
 
+        # -- async and streaming -------------------------------------------
+        w()
+        w("  async and streaming")
+
+        class _AsyncClient:
+            class messages:
+                @staticmethod
+                async def create(model=None, **k):
+                    await asyncio.sleep(0.03)
+                    return type("R", (), {"usage": {"input_tokens": 100, "output_tokens": 20}})()
+        p = fresh()
+        async def _one():
+            with task("t"):
+                with step("s"):
+                    return await wrap(_AsyncClient()).messages.create(model="anth")
+        res = {}
+        th = threading.Thread(target=lambda: res.__setitem__("r", asyncio.run(_one())))
+        th.start(); th.join()
+        c = first(p)
+        check("an awaited call records its usage and its real duration",
+              c.get("tokens_in") == 100 and not c.get("usage_missing")
+              and c.get("seconds", 0) >= 0.02 and c.get("owner") == "s")
+
+        def _chunk(text=None, usage=None):
+            return type("Chunk", (), {"text": text, "usage": usage})()
+        class _OAIStream:
+            def __init__(self, chunks):
+                self._c = iter(chunks)
+            def __iter__(self):
+                return self
+            def __next__(self):
+                time.sleep(0.01)
+                return next(self._c)
+        class _OAI:
+            class chat:
+                class completions:
+                    @staticmethod
+                    def create(model=None, **k):
+                        return _OAIStream([_chunk("He"), _chunk("llo"),
+                                           _chunk(None, {"prompt_tokens": 50, "completion_tokens": 2,
+                                                         "total_tokens": 52})])
+        p = fresh()
+        with task("t"):
+            with step("s"):
+                s = wrap(_OAI()).chat.completions.create(model="oai", stream=True)
+        got = "".join(ch.text for ch in s if ch.text)       # read OUTSIDE the step
+        cs = calls_in(p)
+        check("a stream is recorded once, with usage from its final chunk",
+              got == "Hello" and len(cs) == 1 and cs[0].get("tokens_in") == 50
+              and cs[0].get("tokens_out") == 2)
+        check("a stream's time covers reading it, and it stays with the step that opened it",
+              cs[0].get("seconds", 0) >= 0.025 and cs[0].get("owner") == "s")
+
+        class _Gem:
+            class models:
+                @staticmethod
+                def generate_content_stream(model=None, **k):
+                    for n in (5, 12, 20):
+                        yield type("C", (), {"usage_metadata": {
+                            "prompt_token_count": 10, "candidates_token_count": n,
+                            "thoughts_token_count": 30, "total_token_count": 40 + n}})()
+        p = fresh()
+        list(wrap(_Gem()).models.generate_content_stream(model="goog"))
+        cs = calls_in(p)
+        check("google's streaming method is recorded, with the last chunk's totals",
+              len(cs) == 1 and cs[0].get("tokens_out") == 20 and cs[0].get("tokens_reasoning") == 30)
+
+        class _GemAio:                    # client.aio.models.generate_content_stream
+            class models:
+                @staticmethod
+                async def generate_content_stream(model=None, **k):
+                    async def gen():
+                        for n in (4, 9):
+                            await asyncio.sleep(0.01)
+                            yield type("C", (), {"usage_metadata": {
+                                "prompt_token_count": 7, "candidates_token_count": n,
+                                "total_token_count": 7 + n}})()
+                    return gen()
+        p = fresh()
+        async def _aio():
+            with task("t"):
+                with step("s"):
+                    st = await wrap(_GemAio()).models.generate_content_stream(model="goog")
+            got = [ch async for ch in st]
+            return got, len(calls_in(p))          # recorded at the end, not on cleanup
+        th = threading.Thread(target=lambda: res.__setitem__("g", asyncio.run(_aio())))
+        th.start(); th.join()
+        cs = calls_in(p)
+        check("an async stream (await, then async for) is recorded once, when it ends",
+              res.get("g", ([], 0))[1] == 1 and len(res["g"][0]) == 2
+              and len(cs) == 1 and cs[0].get("tokens_out") == 9
+              and cs[0].get("seconds", 0) >= 0.015 and cs[0].get("owner") == "s")
+
+        class _AnthEvents:
+            class messages:
+                @staticmethod
+                def create(model=None, **k):
+                    return iter([
+                        {"type": "message_start", "message": {"usage": {
+                            "input_tokens": 80, "output_tokens": 1,
+                            "cache_creation_input_tokens": 0, "cache_read_input_tokens": 400}}},
+                        {"type": "content_block_delta"},
+                        {"type": "message_delta", "usage": {"output_tokens": 37}},
+                    ])
+        p = fresh()
+        list(wrap(_AnthEvents()).messages.create(model="anth", stream=True))
+        c = first(p)
+        check("anthropic stream events are combined: input from the start, output from the end",
+              c.get("tokens_in") == 80 and c.get("tokens_out") == 37 and c.get("cache_read") == 400)
+
+        p = fresh()
+        list(wrap(type("Client", (), {"messages": type("M", (), {
+            "create": staticmethod(lambda model=None, **k: iter([_chunk("a"), _chunk("b")]))})})()
+        ).messages.create(model="oai", stream=True))
+        c = first(p)
+        check("a stream that never reports usage is marked unknown, not free",
+              c.get("usage_missing") is True)
+
+        def _ev(**kw):
+            return type("Ev", (), kw)()
+        class _Responses:
+            class responses:
+                @staticmethod
+                def create(model=None, **k):
+                    return iter([
+                        _ev(type="response.created", response=_ev(usage=None)),
+                        _ev(type="response.output_text.delta", delta="hi"),
+                        _ev(type="response.completed", response=_ev(usage={
+                            "input_tokens": 60, "output_tokens": 9, "total_tokens": 69,
+                            "input_tokens_details": {"cached_tokens": 40}})),
+                    ])
+        p = fresh()
+        list(wrap(_Responses()).responses.create(model="oai", stream=True))
+        c = first(p)
+        check("openai responses stream: usage read off the response.completed event",
+              c.get("tokens_in") == 20 and c.get("cache_read") == 40 and c.get("tokens_out") == 9)
+
+        # Anthropic's client.messages.stream(...) returns a context manager.
+        # Three ways people read it: iterate the events, call
+        # get_final_message(), or iterate .text_stream, which bypasses us.
+        def _anth_manager(stop_reason, snapshot=True):
+            events = [
+                _ev(type="message_start", message=_ev(usage={
+                    "input_tokens": 70, "output_tokens": 1,
+                    "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0})),
+                _ev(type="content_block_delta"),
+                _ev(type="message_delta", usage={"output_tokens": 25}),
+            ]
+            final = _ev(usage={"input_tokens": 70, "output_tokens": 25}, stop_reason="end_turn")
+            snap = _ev(usage={"input_tokens": 70, "output_tokens": 25 if stop_reason else 1},
+                       stop_reason=stop_reason)
+            class MessageStream:
+                def __init__(self):
+                    self._it = iter(events)
+                    if snapshot:
+                        self.current_message_snapshot = snap
+                    self.text_stream = iter(["some ", "text"])
+                def __iter__(self):
+                    return self
+                def __next__(self):
+                    return next(self._it)
+                def get_final_message(self):
+                    for _ in self._it:
+                        pass
+                    return final
+            class Manager:
+                def __enter__(self):
+                    return MessageStream()
+                def __exit__(self, *e):
+                    return False
+            class Client:
+                class messages:
+                    @staticmethod
+                    def stream(model=None, **k):
+                        return Manager()
+            return wrap(Client())
+
+        p = fresh()
+        with task("t"):
+            with step("s"):
+                with _anth_manager("end_turn").messages.stream(model="anth") as s:
+                    for _ in s:
+                        pass
+        cs = calls_in(p)
+        ok_iter = len(cs) == 1 and cs[0].get("tokens_out") == 25 and cs[0].get("owner") == "s"
+        p = fresh()
+        with _anth_manager("end_turn", snapshot=False).messages.stream(model="anth") as s:
+            s.get_final_message()
+        c1 = first(p)
+        p = fresh()
+        with _anth_manager("end_turn").messages.stream(model="anth") as s:
+            "".join(s.text_stream)
+        c2 = first(p)
+        check("anthropic messages.stream(): recorded once, whether you iterate, "
+              "call get_final_message(), or read text_stream",
+              ok_iter and c1.get("tokens_out") == 25 and c2.get("tokens_out") == 25)
+
+        p = fresh()
+        with _anth_manager(None).messages.stream(model="anth") as s:
+            next(iter(s.text_stream))                     # stop reading early
+        c = first(p)
+        check("a stream left part read is marked unknown, not charged at its partial count",
+              c.get("usage_missing") is True)
+
+        class _Breaks:
+            class messages:
+                @staticmethod
+                def create(model=None, **k):
+                    def gen():
+                        yield _chunk("a")
+                        raise RuntimeError("connection dropped")
+                    return gen()
+        p = fresh()
+        dropped = False
+        try:
+            list(wrap(_Breaks()).messages.create(model="oai", stream=True))
+        except RuntimeError:
+            dropped = True
+        c = first(p)
+        check("a stream that fails part way is recorded as an error, and you still get the error",
+              dropped and c.get("status") == "error")
+
         # -- report honesty ------------------------------------------------
         w()
         w("  report honesty")
@@ -845,7 +1359,7 @@ def _selftest(out=sys.stdout):
             bad.messages.create(model="anth")
         except RuntimeError as e:
             caught = str(e) == "rate limited"
-        c = calls_in(p)[0]
+        c = first(p)
         check("your exception reaches you untouched, and is recorded as an error",
               caught and c.get("status") == "error" and not c.get("usage_missing"))
 
@@ -853,7 +1367,7 @@ def _selftest(out=sys.stdout):
         with task("t"):
             with step("s"):
                 wrap(fake(None)).messages.create(model="anth")
-        c = calls_in(p)[0]
+        c = first(p)
         txt = text_of(p, prices)
         check("a call with no usage object is marked unknown, not counted as free",
               c.get("usage_missing") is True and "USAGE MISSING" in txt and "lower bound" in txt)
@@ -879,10 +1393,9 @@ def _selftest(out=sys.stdout):
                     model="anth", system="system " + secret,
                     messages=[{"role": "user", "content": "prompt " + secret}],
                     metadata={"user_id": "user-" + secret})
-        with open(p) as f:
-            written = f.read()
+        written = open(p).read() if os.path.exists(p) else ""
         check("prompts, replies, API keys and ids are never written to the file",
-              secret not in written)
+              '"type": "call"' in written and secret not in written)
         net = {"socket", "urllib", "http", "requests", "httpx", "aiohttp",
                "ssl", "ftplib", "smtplib", "urllib3", "websocket", "websockets"}
         with open(os.path.abspath(__file__)) as f:
