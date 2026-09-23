@@ -301,6 +301,12 @@ def _record(model, usage, seconds, status, attempt):
     }
     if usage:
         rec.update(usage)
+    elif status == "ok":
+        # The call succeeded and the provider returned no usage object. Its cost
+        # is UNKNOWN, not zero. Left unmarked, this row is byte-identical to a
+        # call that genuinely cost nothing - and a total that silently counts it
+        # as free reads low, which is the direction nobody audits.
+        rec["usage_missing"] = True
     _rec.write(rec)
 
 
@@ -557,6 +563,24 @@ def report(path=None, prices=None, out=sys.stdout):
           % (len(retries), cost))
 
     # ---- honesty ----------------------------------------------------------
+    missing = [c for c in calls if c.get("usage_missing")]
+    if missing:
+        w()
+        w("-" * 68)
+        w(f"  USAGE MISSING  {len(missing)} call(s)")
+        w("-" * 68)
+        by_owner = {}
+        for c in missing:
+            by_owner.setdefault(c.get("owner") or ("UNATTRIBUTED" if c.get("task_id") else "outside any task"), 0)
+            by_owner[c.get("owner") or ("UNATTRIBUTED" if c.get("task_id") else "outside any task")] += 1
+        for owner, n in sorted(by_owner.items(), key=lambda kv: -kv[1]):
+            w("  %-30s %6d calls   cost unknown" % (owner[:30], n))
+        w()
+        w("  These calls succeeded but the provider returned no usage object.")
+        w("  They are shown above at $0 because nothing was reported, not because")
+        w("  they were free. Every total above is a lower bound. A low number is")
+        w("  the one nobody audits, so it is printed here rather than left silent.")
+
     if unaccounted:
         w()
         w("-" * 68)
