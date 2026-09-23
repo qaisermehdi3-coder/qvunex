@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 1,430 lines, of which about 490 are the --selftest at the bottom.
+    about 1,490 lines, of which about 500 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -721,6 +721,16 @@ def report(path=None, prices=None, out=sys.stdout):
     w("=" * 68)
     w(f"  corpus        {path}")
     w(f"  calls         {len(calls):,}")
+    ts = [c["t"] for c in calls if isinstance(c.get("t"), (int, float))]
+    if ts:
+        fmt = lambda x: time.strftime("%Y-%m-%d %H:%M", time.gmtime(x))
+        w(f"  period        {fmt(min(ts))} to {fmt(max(ts))} UTC")
+    known_total = sum(cost_of(c, cards) or 0 for c in calls)
+    gaps = any(c.get("usage_missing") or (c.get("status") == "ok" and c.get("model") not in cards)
+               for c in calls)
+    w(f"  known cost    ${known_total:.4f}" + ("  (at least - some costs unknown, see below)" if gaps else ""))
+    w(f"                check it against your provider's own usage page for the")
+    w(f"                same account and the same period")
 
     unpriced = sorted({c.get("model") for c in calls if c.get("model") not in cards})
     unaccounted = sum(c.get("tokens_unaccounted", 0) or 0 for c in calls)
@@ -741,13 +751,26 @@ def report(path=None, prices=None, out=sys.stdout):
         # averaging it in at its partial cost drags the mean down silently.
         # Found on live Gemini data: one task hit a rate limit on its first
         # call, was averaged in at $0, and understated the mean by a third.
+        #
+        # A finished task is only averaged in if every successful call in it has
+        # a known cost. One call with no usage, or on a model with no price,
+        # makes the task's total a lower bound - and a workflow measured less
+        # completely would otherwise look cheaper than one measured fully.
+        # (Raised by OkFlan504 on r/LLMDevs; reproduced before it was fixed.)
         by_name = {}
         failed = {}
+        coverage = {}
         for (name, _tid), cs in tasks.items():
             cost = sum(cost_of(c, cards) or 0 for c in cs)
             last = max(cs, key=lambda c: c.get("t", 0))
             if last.get("status") == "ok":
-                by_name.setdefault(name, []).append((cost, len(cs)))
+                ok = [c for c in cs if c.get("status") == "ok"]
+                known = [c for c in ok if not c.get("usage_missing")
+                         and cost_of(c, cards) is not None]
+                cov = coverage.setdefault(name, [0, 0])
+                cov[0] += len(known); cov[1] += len(ok)
+                complete = len(known) == len(ok)
+                by_name.setdefault(name, []).append((cost, len(cs), complete))
             else:
                 failed.setdefault(name, []).append((cost, len(cs)))
         if by_name:
@@ -755,18 +778,33 @@ def report(path=None, prices=None, out=sys.stdout):
             w("-" * 68)
             w("  COST PER FINISHED TASK")
             w("-" * 68)
-            w("  %-22s %4s %10s %10s %10s %7s" % ("task", "n", "mean", "p50", "p95", "calls"))
+            w("  %-20s %4s %9s %9s %9s %6s %6s" % (
+                "task", "n", "mean", "p50", "p95", "calls", "known"))
+            partial = {}
             for name, rows in sorted(by_name.items(), key=lambda kv: -sum(r[0] for r in kv[1])):
-                costs = [r[0] for r in rows]
-                w("  %-22s %4d %10s %10s %10s %7.1f" % (
-                    name[:22], len(costs),
-                    f"${statistics.mean(costs):.4f}",
-                    f"${_pct(costs, 0.50):.4f}",
-                    f"${_pct(costs, 0.95):.4f}",
-                    statistics.mean([r[1] for r in rows])))
+                costs = [r[0] for r in rows if r[2]]
+                partial_rows = [r for r in rows if not r[2]]
+                if partial_rows:
+                    partial[name] = partial_rows
+                k, n = coverage[name]
+                money = ((f"${statistics.mean(costs):.4f}", f"${_pct(costs, 0.50):.4f}",
+                          f"${_pct(costs, 0.95):.4f}") if costs else ("-", "-", "-"))
+                w("  %-20s %4d %9s %9s %9s %6.1f %5d%%" % (
+                    name[:20], len(costs), *money,
+                    statistics.mean([r[1] for r in rows]),
+                    int(100 * k / n) if n else 0))
             w()
-            w("  The mean and the p95 are different questions. An average hides the")
-            w("  tasks that actually hurt.")
+            w("  n counts only tasks where every call's cost is known. 'known' is")
+            w("  the share of calls with a known cost. Compare workflows only where")
+            w("  it is 100% - a lower number can make a workflow look cheaper just")
+            w("  because less of it was measured. The mean and the p95 are different")
+            w("  questions; an average hides the tasks that actually hurt.")
+            for name, rows in sorted(partial.items()):
+                w()
+                w("  %d '%s' task(s) finished with calls of unknown cost — at least"
+                  % (len(rows), name[:22]))
+                w("  $%.4f known so far, counted apart, never averaged in"
+                  % sum(r[0] for r in rows))
         if failed:
             w()
             for name, rows in sorted(failed.items()):
@@ -1371,6 +1409,21 @@ def _selftest(out=sys.stdout):
         txt = text_of(p, prices)
         check("a call with no usage object is marked unknown, not counted as free",
               c.get("usage_missing") is True and "USAGE MISSING" in txt and "lower bound" in txt)
+
+        p = fresh()
+        full = {"input_tokens": 1000, "output_tokens": 100}
+        for _ in range(2):
+            with task("measured"):
+                wrap(fake(full)).messages.create(model="anth")
+                wrap(fake(full)).messages.create(model="anth")
+            with task("half measured"):
+                wrap(fake(full)).messages.create(model="anth")
+                wrap(fake(None)).messages.create(model="anth")
+        txt = text_of(p, prices)
+        row = [l for l in txt.splitlines() if l.strip().startswith("half measured")]
+        check("a workflow with unknown-cost calls is not averaged in, so it cannot look cheaper",
+              row and row[0].split()[2] == "0" and row[0].rstrip().endswith("50%")
+              and "finished with calls of unknown cost" in txt)
 
         # -- the claim anyone can grep -------------------------------------
         w()
