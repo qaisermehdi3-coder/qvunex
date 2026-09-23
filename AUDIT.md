@@ -78,8 +78,13 @@ described above.
 - **OpenAI chat streams** carry no usage unless you pass
   `stream_options={"include_usage": True}`. Without it, those calls show up as
   usage missing and the note says how many. They are never counted as free.
-- **Provider coverage, honestly:** plain Gemini calls are tested live.
-  Streaming and async calls, Anthropic, OpenAI (Chat Completions and the
+- **Retries inside your provider's SDK are invisible** to anything that wraps
+  the client, this included. In a live test Google's SDK quietly retried a
+  failing call for 25 seconds, and it shows as one failed call, with the time of
+  all the tries together.
+- **Provider coverage, honestly:** Gemini is tested live, for plain, streamed
+  and async calls and for calls that fail. A streamed call that also thinks has
+  not been caught live yet. Anthropic, OpenAI (Chat Completions and the
   Responses API) and LangChain's usage are handled from each one's documented
   usage shape and checked by `--selftest`, but not yet against a live account.
   If you are on one of those, you would be the first, and I will check your
