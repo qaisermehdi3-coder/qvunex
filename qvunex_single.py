@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 650 lines, a third of them comments saying why.
+    about 900 lines, of which roughly 200 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -30,6 +30,10 @@ Measures what each LLM call actually costs and what a finished task costs.
     Try it with no API key and no network:
 
         python3 qvunex_single.py --demo
+
+    Check every behaviour described here on your own machine:
+
+        python3 qvunex_single.py --selftest
 
     RATE CARD
     ---------
@@ -81,10 +85,12 @@ CACHE_READ_MULT = 0.10
 #
 #   asyncio tasks   YES. Each task copies the context at creation, so concurrent
 #                   tasks keep separate labels and cannot leak into each other.
-#   threads         NO. A new thread starts with a fresh, empty context, so it
-#                   sees no task and no step. Calls made in a worker thread are
-#                   recorded with task=None and land in the "outside any task"
-#                   line - honest, but not attributed.
+#   threads         NO on Python 3.10 to 3.13, which is what has been tested. A
+#                   new thread starts with a fresh, empty context, so it sees no
+#                   task and no step. Calls made in a worker thread are recorded
+#                   with task=None and land in the "outside any task" line -
+#                   honest, but not attributed. Newer Pythons may differ; run
+#                   --selftest and it will tell you what yours does.
 #   processes       NO.
 #
 # The thread case matters because many frameworks run tool calls and sub-agent
@@ -665,8 +671,228 @@ def _demo():
     print(f"corpus written to {path}\n")
 
 
+# ---------------------------------------------------------------------------
+# selftest — every behaviour claimed in public, checked on your own machine
+# ---------------------------------------------------------------------------
+# These check the METER's own logic: attribution, arithmetic, what the report
+# says. They use small stand-in provider objects shaped like the documented
+# responses, so they cannot prove a live provider still behaves that way.
+# For that, wrap a real client and read the report.
+
+def _selftest(out=sys.stdout):
+    import asyncio, ast, io, tempfile, threading
+    w = lambda s="": print(s, file=out)
+    results = []
+
+    def check(name, ok, detail=""):
+        results.append(bool(ok))
+        w(("  PASS  " if ok else "  FAIL  ") + name + (f"  ({detail})" if detail else ""))
+
+    def fresh():
+        d = tempfile.mkdtemp()
+        p = os.path.join(d, "events.jsonl")
+        configure(path=p)
+        return p
+
+    def calls_in(p):
+        with open(p) as f:
+            return [r for r in (json.loads(l) for l in f) if r.get("type") == "call"]
+
+    def text_of(p, prices):
+        buf = io.StringIO()
+        report(path=p, prices=prices, out=buf)
+        return buf.getvalue()
+
+    def fake(usage=None, raises=None, attr="usage"):
+        class Ns:
+            @staticmethod
+            def create(model=None, **k):
+                if raises:
+                    raise raises
+                return type("R", (), {attr: usage} if usage is not None else {})()
+        return type("Client", (), {"messages": Ns})()
+
+    def close(a, b):
+        return abs(a - b) < 1e-12
+
+    saved = (_rec.path, _rec._started)
+    d = tempfile.mkdtemp()
+    prices = os.path.join(d, "prices.txt")
+    with open(prices, "w") as f:
+        f.write("anth 3.00 15.00 3.75 0.30\n"
+                "oai  1.00  4.00 1.25 0.10\n"
+                "goog 1.00 10.00 1.25 0.10\n")
+    cards = load_prices(prices)
+
+    w("=" * 68)
+    w("  QVUNEX SELFTEST")
+    w("=" * 68)
+    w(f"  python {sys.version.split()[0]}")
+    w()
+
+    try:
+        # -- provider arithmetic ------------------------------------------
+        w("  provider arithmetic")
+        p = fresh()
+        wrap(fake({"input_tokens": 100, "output_tokens": 50,
+                   "cache_creation_input_tokens": 400,
+                   "cache_read_input_tokens": 1000})).messages.create(model="anth")
+        c = calls_in(p)[0]
+        check("anthropic: input excludes cache, cache priced on its own",
+              close(cost_of(c, cards), (100*3 + 50*15 + 400*3.75 + 1000*0.30) / 1e6))
+
+        p = fresh()
+        wrap(fake({"prompt_tokens": 1000, "completion_tokens": 200, "total_tokens": 1200,
+                   "prompt_tokens_details": {"cached_tokens": 800},
+                   "completion_tokens_details": {"reasoning_tokens": 150}})).messages.create(model="oai")
+        c = calls_in(p)[0]
+        check("openai: cached tokens not counted twice, reasoning not added again",
+              close(cost_of(c, cards), (200*1 + 800*0.10 + 200*4) / 1e6))
+
+        p = fresh()
+        wrap(fake({"prompt_token_count": 10, "candidates_token_count": 5,
+                   "thoughts_token_count": 20, "total_token_count": 35},
+                  attr="usage_metadata")).messages.create(model="goog")
+        c = calls_in(p)[0]
+        check("google: thinking billed on top of output",
+              close(cost_of(c, cards), (10*1 + 5*10 + 20*10) / 1e6))
+
+        p = fresh()
+        wrap(fake({"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 175})
+             ).messages.create(model="oai")
+        c = calls_in(p)[0]
+        check("provider total that does not match the parts is recorded as a gap",
+              c.get("tokens_unaccounted") == 25, f"gap {c.get('tokens_unaccounted')}")
+
+        # -- attribution ---------------------------------------------------
+        w()
+        w("  attribution")
+        p = fresh()
+        cl = wrap(fake({"input_tokens": 10, "output_tokens": 5}))
+        with task("t"):
+            with step("named"):
+                cl.messages.create(model="anth")
+            cl.messages.create(model="anth")
+        cs = calls_in(p)
+        check("a call no step names stays unowned, never folded into the parent",
+              [x.get("owner") for x in cs] == ["named", None])
+        check("the report prints it on an UNATTRIBUTED line",
+              "UNATTRIBUTED" in text_of(p, prices))
+
+        p = fresh()
+        with task("t"):
+            try:
+                with step("boom"):
+                    raise RuntimeError("x")
+            except RuntimeError:
+                pass
+            # checked INSIDE the task: the task's own cleanup would otherwise
+            # hide a step that failed to remove its label
+            after_step = _current()
+        check("an exception inside a step leaves no stale label behind",
+              after_step[0] == "t" and after_step[2] is None and _current() == (None, None, None))
+
+        p = fresh()
+        async def worker(name, delay):
+            with task(name):
+                with step(name + "-step"):
+                    await asyncio.sleep(delay)
+                    cl.messages.create(model="anth")
+        async def both():
+            await asyncio.gather(worker("a", 0.02), worker("b", 0.01))
+        # run in its own thread so this works even inside a notebook's event loop
+        th = threading.Thread(target=lambda: asyncio.run(both()))
+        th.start(); th.join()
+        pairs = sorted((x.get("task"), x.get("owner")) for x in calls_in(p))
+        check("concurrent asyncio tasks keep their labels separate",
+              pairs == [("a", "a-step"), ("b", "b-step")])
+
+        seen = {}
+        with task("parent"):
+            with step("parent-step"):
+                t = threading.Thread(target=lambda: seen.__setitem__("plain", _current()[0]))
+                t.start(); t.join()
+                ctx = contextvars.copy_context()
+                t = threading.Thread(target=lambda: seen.__setitem__("copied", ctx.run(lambda: _current()[0])))
+                t.start(); t.join()
+        inherits = seen.get("plain") == "parent"
+        check("contextvars.copy_context() carries labels into a thread you own",
+              seen.get("copied") == "parent")
+        w("  INFO  a plain new thread %s the task label on this Python"
+          % ("INHERITS" if inherits else "does NOT inherit"))
+
+        # -- report honesty ------------------------------------------------
+        w()
+        w("  report honesty")
+        p = fresh()
+        ok = wrap(fake({"input_tokens": 1000, "output_tokens": 100}))
+        bad = wrap(fake(raises=RuntimeError("rate limited")))
+        with task("job"):
+            ok.messages.create(model="anth")
+        try:
+            with task("job"):
+                bad.messages.create(model="anth")
+        except RuntimeError:
+            pass
+        txt = text_of(p, prices)
+        one = (1000*3 + 100*15) / 1e6
+        check("a crashed task is not averaged in as a cheap finished one",
+              f"${one:.4f}" in txt and "did not finish" in txt)
+
+        p = fresh()
+        caught = False
+        try:
+            bad.messages.create(model="anth")
+        except RuntimeError as e:
+            caught = str(e) == "rate limited"
+        c = calls_in(p)[0]
+        check("your exception reaches you untouched, and is recorded as an error",
+              caught and c.get("status") == "error" and not c.get("usage_missing"))
+
+        p = fresh()
+        with task("t"):
+            with step("s"):
+                wrap(fake(None)).messages.create(model="anth")
+        c = calls_in(p)[0]
+        txt = text_of(p, prices)
+        check("a call with no usage object is marked unknown, not counted as free",
+              c.get("usage_missing") is True and "USAGE MISSING" in txt and "lower bound" in txt)
+
+        # -- the claim anyone can grep -------------------------------------
+        w()
+        w("  what this file does not do")
+        net = {"socket", "urllib", "http", "requests", "httpx", "aiohttp",
+               "ssl", "ftplib", "smtplib", "urllib3", "websocket", "websockets"}
+        with open(os.path.abspath(__file__)) as f:
+            tree = ast.parse(f.read())
+        imported = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported |= {a.name.split(".")[0] for a in node.names}
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module.split(".")[0])
+        bad_imports = sorted(imported & net)
+        check("no networking module is imported anywhere in this file",
+              not bad_imports, ", ".join(bad_imports) if bad_imports else "")
+    finally:
+        _rec.path, _rec._started = saved
+
+    passed = sum(results)
+    w()
+    w(f"  {passed} of {len(results)} passed")
+    w()
+    w("  These test the meter's own logic against stand-in responses shaped")
+    w("  like each provider's documented usage object. They cannot tell you a")
+    w("  live provider still reports that shape. To check that, wrap your real")
+    w("  client, make one call, and read the report.")
+    w()
+    return 0 if passed == len(results) else 1
+
+
 if __name__ == "__main__":
-    if "--demo" in sys.argv:
+    if "--selftest" in sys.argv:
+        sys.exit(_selftest())
+    elif "--demo" in sys.argv:
         _demo()
     elif len(sys.argv) > 1 and sys.argv[1] not in ("-h", "--help"):
         report(path=sys.argv[1])
