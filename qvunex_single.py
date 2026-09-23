@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 900 lines, of which roughly 200 are the --selftest at the bottom.
+    about 920 lines, of which about 230 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -861,6 +861,28 @@ def _selftest(out=sys.stdout):
         # -- the claim anyone can grep -------------------------------------
         w()
         w("  what this file does not do")
+        p = fresh()
+        secret = "PRIVATE-selftest-7f3a91"
+        class Leaky:
+            api_key = "sk-" + secret
+            class messages:
+                @staticmethod
+                def create(model=None, messages=None, system=None, **k):
+                    r = type("R", (), {})()
+                    r.usage = {"input_tokens": 12, "output_tokens": 4}
+                    r.content = [{"type": "text", "text": "reply " + secret}]
+                    r.id = "id-" + secret
+                    return r
+        with task("t"):
+            with step("s"):
+                wrap(Leaky()).messages.create(
+                    model="anth", system="system " + secret,
+                    messages=[{"role": "user", "content": "prompt " + secret}],
+                    metadata={"user_id": "user-" + secret})
+        with open(p) as f:
+            written = f.read()
+        check("prompts, replies, API keys and ids are never written to the file",
+              secret not in written)
         net = {"socket", "urllib", "http", "requests", "httpx", "aiohttp",
                "ssl", "ftplib", "smtplib", "urllib3", "websocket", "websockets"}
         with open(os.path.abspath(__file__)) as f:
