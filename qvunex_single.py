@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 1,770 lines, of which about 560 are the --selftest at the bottom.
+    about 1,850 lines, of which about 580 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -42,8 +42,9 @@ Measures what each LLM call actually costs and what a finished task costs.
 
         python3 qvunex_single.py --reconcile before.txt after.txt
 
-    Add --gpu-rate 0.83 (dollars per hour for the server) to see what each
-    request cost at the load you actually ran.
+    It also prints how fast the server read prompts and wrote answers, per
+    request and for the whole server. Add --gpu-rate 0.83 (dollars per hour
+    for the server) to see what each request cost at the load you actually ran.
 
     Try it with no API key and no network:
 
@@ -1082,18 +1083,20 @@ def reconcile(before, after, path=None, model=None, prices=None,
         w("  calls from outside this window or to another server. Use a fresh")
         w("  QVUNEX_PATH for each pair of snapshots.")
     w()
+    # The window is the time between the two snapshots: given, or read from
+    # the times the two files were written.
+    src = "given"
+    if window is None:
+        try:
+            window = os.path.getmtime(after) - os.path.getmtime(before)
+            src = "from the snapshot files' times"
+        except OSError:
+            window = None
+    speed = _server_speed(b, a, models, window, src, w)
     gpu = None
     if gpu_rate is not None:
         # Self-hosted cost is the GPU's hourly price for the time it was held,
         # including idle time inside the window, because that is what is paid.
-        # The window is the time between the two snapshots.
-        src = "given"
-        if window is None:
-            try:
-                window = os.path.getmtime(after) - os.path.getmtime(before)
-                src = "from the snapshot files' times"
-            except OSError:
-                window = None
         w("-" * 68)
         w("  GPU COST  (self-hosted: paid by the hour, busy or idle)")
         w("-" * 68)
@@ -1119,7 +1122,74 @@ def reconcile(before, after, path=None, model=None, prices=None,
             w("  the first window after the server starts: it can run far slower.")
             gpu = {"window": window, "cost": cost, "per_request": per_req, "per_m_output": per_m}
         w()
-    return {"server": server, "meter": meter, "gaps": gaps, "missing": len(missing), "gpu": gpu}
+    return {"server": server, "meter": meter, "gaps": gaps, "missing": len(missing),
+            "gpu": gpu, "speed": speed}
+
+
+def _delta(b, a, metric, models):
+    """after - before for one counter; None if absent, "reset" if it went down."""
+    bv = [b[(metric, m)] for m in models if (metric, m) in b]
+    av = [a[(metric, m)] for m in models if (metric, m) in a]
+    if len(av) != len(models) or len(bv) != len(models):
+        return None
+    if sum(av) < sum(bv):
+        return "reset"
+    return sum(av) - sum(bv)
+
+
+# How fast the server read prompts and wrote answers, from vLLM's own
+# per-request histograms (checked in vLLM 0.27.1's source, v1/metrics):
+#   prefill time = first token - scheduled   (prompt, plus the first token)
+#   decode time  = last token - first token  (every output token after the first)
+#   request_prefill_kv_computed_tokens = prompt tokens minus cached ones
+# All are recorded for the same finished requests as request_success_total.
+# Live on a Colab T4, vLLM 0.27.1, 25 Sept 2026: the decode token count
+# (output minus one per request) matched vLLM's separate inter-token gap
+# counter exactly (504 and 504), and the decode time matched its gap time.
+# Same session, 8 requests one at a time vs 8 at once, three rounds each:
+# per-request decode 169-170 vs 122-124 tokens/s, while the whole server
+# went 151-154 vs 701-708 tokens/s. Priced from per-request speed, that load
+# would look about 5.7x dearer than it was.
+# These are each request's own time. When requests run at the same time their
+# times overlap, so the per-request speed drops while the whole server does
+# more. Cost comes from the whole server; the per-request speed is what one
+# user waits for. Both are printed, never one passed off as the other.
+
+def _server_speed(b, a, models, window, src, w):
+    d = lambda metric: _delta(b, a, metric, models)
+    reqs = d("vllm:request_success_total")
+    new_prompt = d("vllm:request_prefill_kv_computed_tokens_sum")
+    pre_s = d("vllm:request_prefill_time_seconds_sum")
+    gen = d("vllm:request_generation_tokens_sum")
+    dec_s = d("vllm:request_decode_time_seconds_sum")
+    num = lambda v: isinstance(v, float)
+
+    prefill = new_prompt / pre_s if num(new_prompt) and num(pre_s) and pre_s > 0 else None
+    decode = None
+    if num(gen) and num(reqs) and num(dec_s) and dec_s > 0:
+        decode = (gen - reqs) / dec_s          # the first token of each is prefill's
+    whole = gen / window if num(gen) and window and window > 0 else None
+
+    w("-" * 68)
+    w("  SERVER SPEED  (from vLLM's own counters)")
+    w("-" * 68)
+    w("  per request, each request's own time:")
+    w("    prefill     " + (f"{prefill:,.0f} tokens/s  ({int(new_prompt):,} new prompt tokens"
+                            f" in {pre_s:.3f} s; cached tokens left out)" if prefill is not None
+                            else "unknown - prefill counters missing, reset or zero"))
+    w("    decode      " + (f"{decode:,.1f} tokens/s  ({int(gen - reqs):,} tokens after each"
+                            f" request's first, in {dec_s:.3f} s)" if decode is not None
+                            else "unknown - decode counters missing, reset or zero"))
+    w("  whole server, over the window:")
+    w("    output      " + (f"{whole:,.1f} tokens/s  ({int(gen):,} output tokens in"
+                            f" {window:,.1f} s, {src}, idle included)" if whole is not None
+                            else "unknown - no window or no output count"))
+    w()
+    w("  With requests running at once, per-request speed falls and the whole")
+    w("  server's rises. Price by the whole-server figure; it holds only at the")
+    w("  load you ran.")
+    w()
+    return {"prefill": prefill, "decode": decode, "whole_output": whole}
 
 
 # ---------------------------------------------------------------------------
@@ -1696,6 +1766,32 @@ def _selftest(out=sys.stdout):
                        gpu_rate=3.6, window=0, out=buf)
         check("self-hosted cost: no window or no requests is unknown, never $0 per request",
               r3["gpu"]["per_request"] is None and "unknown" in buf.getvalue())
+
+        def hist(kv, pre, dec):
+            lab = f'{{engine="0",model_name="{m}"}}'
+            return (f"vllm:request_prefill_kv_computed_tokens_sum{lab} {kv}\n"
+                    f"vllm:request_prefill_time_seconds_sum{lab} {pre}\n"
+                    f"vllm:request_decode_time_seconds_sum{lab} {dec}\n")
+        buf = io.StringIO()
+        r4 = reconcile(snap(5, 1000, 300, hist(800, 0.4, 3.0)),
+                       snap(7, 1250, 400, hist(1000, 0.5, 5.0)),
+                       path=p, prices=prices, window=10, out=buf)
+        s = r4 and r4["speed"]
+        check("server speed: prefill counts only new prompt tokens, decode leaves out each first token",
+              s and close(s["prefill"], 2000.0) and close(s["decode"], 49.0)
+              and close(s["whole_output"], 10.0))
+        buf = io.StringIO()
+        r5 = reconcile(snap(5, 1000, 300), snap(7, 1250, 400), path=p, prices=prices,
+                       window=10, out=buf)
+        check("server speed: missing timing counters are unknown, never 0 tokens/s",
+              r5["speed"]["prefill"] is None and r5["speed"]["decode"] is None
+              and "unknown - prefill" in buf.getvalue())
+        times = lambda pre, dec: "\n".join(hist(0, pre, dec).splitlines()[1:]) + "\n"
+        buf = io.StringIO()
+        r6 = reconcile(snap(5, 1000, 300, times(0.4, 3.0)), snap(7, 1250, 400, times(0.5, 5.0)),
+                       path=p, prices=prices, window=10, out=buf)
+        check("server speed: prefill time without its token counter is unknown, not 0 tokens/s",
+              r6["speed"]["prefill"] is None and close(r6["speed"]["decode"], 49.0))
 
         # -- the claim anyone can grep -------------------------------------
         w()
