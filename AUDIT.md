@@ -27,6 +27,12 @@ A written note from your own traffic, covering:
   output tokens once the thinking was counted. Anthropic folds thinking into
   output and does not report it apart, so on Anthropic this line is not possible.
 - **Where the provider's own total and the parts do not add up.**
+- **Running your own model server (vLLM)?** The note also covers what one
+  request costs on your GPUs at the load you actually ran, idle time included,
+  and the calls your client never got a count for, reconciled against the
+  server's own counters. Tested live on vLLM 0.27.1: client and server totals matched
+  exactly, and the one call that came back with no usage was
+  recovered exactly from the server side.
 
 And three to five specific changes, each tied to a number in your data.
 
