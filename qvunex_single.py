@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 1,510 lines, of which about 520 are the --selftest at the bottom.
+    about 1,700 lines, of which about 550 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -36,6 +36,11 @@ Measures what each LLM call actually costs and what a finished task costs.
                                        stream_options={"include_usage": True})
 
     Without that, those calls are marked usage missing, never counted as $0.
+
+    Running your own model server (vLLM)? Streams may come back with no usage,
+    but the server still counts. Save its counters before and after, then:
+
+        python3 qvunex_single.py --reconcile before.txt after.txt
 
     Try it with no API key and no network:
 
@@ -917,6 +922,162 @@ def report(path=None, prices=None, out=sys.stdout):
 
 
 # ---------------------------------------------------------------------------
+# reconcile against a self-hosted server
+# ---------------------------------------------------------------------------
+# A self-hosted OpenAI-compatible server may send no usage on a stream unless
+# the client asks for it (vLLM: stream_options.include_usage, or the server flag
+# --enable-force-include-usage, which is off by default). Those calls are
+# recorded as usage missing. The server still counted them. Compare the two:
+#
+#     curl -s localhost:8000/metrics > before.txt
+#     ... run your traffic, with a fresh QVUNEX_PATH ...
+#     curl -s localhost:8000/metrics > after.txt
+#     python3 qvunex_single.py --reconcile before.txt after.txt
+#
+# This file still opens no network connection: you save the server's counters
+# with curl, and this reads the saved files. It uses vLLM's per-finished-request
+# counters, which match what a client's usage object would have said:
+#   vllm:request_success_total             requests the server finished
+#   vllm:request_prompt_tokens_sum         prompt tokens of those requests
+#   vllm:request_generation_tokens_sum     output tokens of those requests
+# Totals over the window become provable. Which call used how many tokens does
+# not: counters are sums. That part stays unknown and is reported as unknown.
+
+_SERVER_METRICS = (
+    ("requests", "vllm:request_success_total"),
+    ("prompt tokens", "vllm:request_prompt_tokens_sum"),
+    ("output tokens", "vllm:request_generation_tokens_sum"),
+)
+
+
+def _read_prometheus(path):
+    """{(metric, model_name): value}, summed over engines and finish reasons."""
+    import re
+    line_re = re.compile(r'^([A-Za-z_:][A-Za-z0-9_:]*)(\{.*\})?\s+(\S+)')
+    model_re = re.compile(r'model_name="((?:[^"\\]|\\.)*)"')
+    vals = {}
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            m = line_re.match(line)
+            if not m:
+                continue
+            name, labels, raw = m.groups()
+            try:
+                v = float(raw)
+            except ValueError:
+                continue
+            mm = model_re.search(labels or "")
+            key = (name, mm.group(1) if mm else None)
+            vals[key] = vals.get(key, 0.0) + v
+    return vals
+
+
+def reconcile(before, after, path=None, model=None, prices=None, out=sys.stdout):
+    """Compare what the meter recorded with what a vLLM server counted."""
+    w = lambda s="": print(s, file=out)
+    b, a = _read_prometheus(before), _read_prometheus(after)
+    models = sorted({k[1] for k in a if k[0] == "vllm:request_success_total"} - {None})
+    if model:
+        models = [m for m in models if m == model]
+
+    path = path or _rec.path
+    calls = []
+    if os.path.exists(path):
+        with open(path) as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                if r.get("type") == "call" and (not model or r.get("model") == model):
+                    calls.append(r)
+
+    w("=" * 68)
+    w("  QVUNEX RECONCILE  meter vs server")
+    w("=" * 68)
+    w(f"  events        {path}  ({len(calls)} calls)")
+    w(f"  server        {', '.join(models) if models else 'no vLLM request counters found'}")
+    if not models:
+        w()
+        w("  Nothing to compare: the snapshots hold no vllm:request_success_total.")
+        w("  Check that they are vLLM /metrics output, taken from the same server.")
+        return None
+
+    server = {}
+    for label, metric in _SERVER_METRICS:
+        before_v = [b[(metric, m)] for m in models if (metric, m) in b]
+        after_v = [a[(metric, m)] for m in models if (metric, m) in a]
+        if len(after_v) != len(models) or len(before_v) != len(models):
+            server[label] = None          # not in a snapshot: unknown, not zero
+        elif sum(after_v) < sum(before_v):
+            server[label] = "reset"       # counter went down: server restarted
+        else:
+            server[label] = sum(after_v) - sum(before_v)
+
+    ok = [c for c in calls if c.get("status") == "ok"]
+    missing = [c for c in ok if c.get("usage_missing")]
+    known = [c for c in ok if not c.get("usage_missing")]
+    meter = {
+        "requests": len(ok),
+        "prompt tokens": sum((c.get("tokens_in") or 0) + (c.get("cache_read") or 0)
+                             + (c.get("cache_write") or 0) for c in known),
+        "output tokens": sum(c.get("tokens_out") or 0 for c in known),
+    }
+
+    w()
+    w("  %-16s %14s %14s %14s" % ("", "server", "meter", "gap"))
+    gaps = {}
+    for label, _ in _SERVER_METRICS:
+        s = server[label]
+        if s is None:
+            w("  %-16s %14s %14s %14s" % (label, "not in snapshot", f"{meter[label]:,}", "unknown"))
+            continue
+        if s == "reset":
+            w("  %-16s %14s %14s %14s" % (label, "counter reset", f"{meter[label]:,}", "unknown"))
+            continue
+        g = int(round(s)) - meter[label]
+        gaps[label] = g
+        w("  %-16s %14s %14s %14s" % (label, f"{int(round(s)):,}", f"{meter[label]:,}", f"{g:+,}"))
+    w()
+    w(f"  {len(missing)} of {len(ok)} successful call(s) came back with no usage.")
+
+    if any(server[l] in (None, "reset") for l, _ in _SERVER_METRICS):
+        w()
+        w("  Some server counters are missing or went backwards (a restart between")
+        w("  the snapshots). Those rows cannot be reconciled and are left unknown.")
+    if gaps.get("requests", 0) != 0:
+        w()
+        w("  The server finished a different number of requests than the meter")
+        w("  recorded calls. Other clients, calls outside the window, or requests")
+        w("  still running when the second snapshot was taken all do this. The")
+        w("  token gaps below are only meaningful when this row is +0.")
+    elif missing and gaps.get("prompt tokens", 0) >= 0 and gaps.get("output tokens", 0) >= 0:
+        w()
+        w(f"  Requests match. The token gap is what the server counted for the")
+        w(f"  {len(missing)} call(s) the client never got a count for. The total is now")
+        w(f"  known; which of those calls used how much is still not.")
+        pt, ot = gaps.get("prompt tokens"), gaps.get("output tokens")
+        cards = load_prices(prices)
+        card = cards.get(model or (models[0] if len(models) == 1 else None))
+        if card and pt is not None and ot is not None:
+            usd = (pt * card.get("input", 0) + ot * card.get("output", 0)) / 1e6
+            w(f"  Priced at your rate card, the unrecorded part is ${usd:.4f}.")
+    elif not missing and all(g == 0 for g in gaps.values()):
+        w()
+        w("  Meter and server agree exactly.")
+    elif any(g < 0 for g in gaps.values()):
+        w()
+        w("  The meter recorded more than the server counted: the events file holds")
+        w("  calls from outside this window or to another server. Use a fresh")
+        w("  QVUNEX_PATH for each pair of snapshots.")
+    w()
+    return {"server": server, "meter": meter, "gaps": gaps, "missing": len(missing)}
+
+
+# ---------------------------------------------------------------------------
 # demo — no key, no network
 # ---------------------------------------------------------------------------
 
@@ -1450,6 +1611,34 @@ def _selftest(out=sys.stdout):
               and outside and "+1 unknown" in outside[0]
               and header and header[0].rstrip().endswith("+2 unknown"))
 
+        # -- reconcile against a self-hosted server --------------------------
+        w()
+        w("  reconcile against a server")
+        m = "local-model"
+        def snap(req, pt, gt, extra=""):
+            fn = os.path.join(tempfile.mkdtemp(), "m.txt")
+            with open(fn, "w") as f:
+                f.write(f'# TYPE vllm:request_success_total counter\n'
+                        f'vllm:request_success_total{{engine="0",finished_reason="stop",model_name="{m}"}} {req}\n'
+                        f'vllm:request_prompt_tokens_sum{{engine="0",model_name="{m}"}} {pt}\n'
+                        + (f'vllm:request_generation_tokens_sum{{engine="0",model_name="{m}"}} {gt}\n'
+                           if gt is not None else "") + extra)
+            return fn
+        p = fresh()
+        wrap(fake({"prompt_tokens": 100, "completion_tokens": 40, "total_tokens": 140})).messages.create(model=m)
+        wrap(fake(None)).messages.create(model=m)
+        buf = io.StringIO()
+        r = reconcile(snap(5, 1000, 300), snap(7, 1250, 400), path=p, prices=prices, out=buf)
+        check("reconcile: the server's count fills the gap the missing call left, as a total",
+              r and r["gaps"] == {"requests": 0, "prompt tokens": 150, "output tokens": 60}
+              and r["missing"] == 1)
+        buf = io.StringIO()
+        r1 = reconcile(snap(5, 1000, 300), snap(7, 900, None), path=p, prices=prices, out=buf)
+        check("reconcile: a restarted server or a missing counter is unknown, not zero",
+              r1 and r1["server"]["prompt tokens"] == "reset"
+              and r1["server"]["output tokens"] is None
+              and "prompt tokens" not in r1["gaps"] and "output tokens" not in r1["gaps"])
+
         # -- the claim anyone can grep -------------------------------------
         w()
         w("  what this file does not do")
@@ -1507,6 +1696,9 @@ if __name__ == "__main__":
         sys.exit(_selftest())
     elif "--demo" in sys.argv:
         _demo()
+    elif len(sys.argv) >= 4 and sys.argv[1] == "--reconcile":
+        mdl = sys.argv[sys.argv.index("--model") + 1] if "--model" in sys.argv else None
+        reconcile(sys.argv[2], sys.argv[3], model=mdl)
     elif len(sys.argv) > 1 and sys.argv[1] not in ("-h", "--help"):
         report(path=sys.argv[1])
     else:
