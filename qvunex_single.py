@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 1,700 lines, of which about 550 are the --selftest at the bottom.
+    about 1,770 lines, of which about 560 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -41,6 +41,9 @@ Measures what each LLM call actually costs and what a finished task costs.
     but the server still counts. Save its counters before and after, then:
 
         python3 qvunex_single.py --reconcile before.txt after.txt
+
+    Add --gpu-rate 0.83 (dollars per hour for the server) to see what each
+    request cost at the load you actually ran.
 
     Try it with no API key and no network:
 
@@ -975,8 +978,13 @@ def _read_prometheus(path):
     return vals
 
 
-def reconcile(before, after, path=None, model=None, prices=None, out=sys.stdout):
-    """Compare what the meter recorded with what a vLLM server counted."""
+def reconcile(before, after, path=None, model=None, prices=None,
+              gpu_rate=None, window=None, out=sys.stdout):
+    """Compare what the meter recorded with what a vLLM server counted.
+
+    With gpu_rate (dollars per hour for the whole server) it also prices the
+    window the way self-hosting is actually billed: by the hour, busy or idle.
+    """
     w = lambda s="": print(s, file=out)
     b, a = _read_prometheus(before), _read_prometheus(after)
     models = sorted({k[1] for k in a if k[0] == "vllm:request_success_total"} - {None})
@@ -1074,7 +1082,43 @@ def reconcile(before, after, path=None, model=None, prices=None, out=sys.stdout)
         w("  calls from outside this window or to another server. Use a fresh")
         w("  QVUNEX_PATH for each pair of snapshots.")
     w()
-    return {"server": server, "meter": meter, "gaps": gaps, "missing": len(missing)}
+    gpu = None
+    if gpu_rate is not None:
+        # Self-hosted cost is the GPU's hourly price for the time it was held,
+        # including idle time inside the window, because that is what is paid.
+        # The window is the time between the two snapshots.
+        src = "given"
+        if window is None:
+            try:
+                window = os.path.getmtime(after) - os.path.getmtime(before)
+                src = "from the snapshot files' times"
+            except OSError:
+                window = None
+        w("-" * 68)
+        w("  GPU COST  (self-hosted: paid by the hour, busy or idle)")
+        w("-" * 68)
+        if not window or window <= 0:
+            w("  window        unknown - pass the seconds between snapshots with --window")
+            gpu = {"window": None, "cost": None, "per_request": None, "per_m_output": None}
+        else:
+            cost = gpu_rate * window / 3600.0
+            reqs, outs = server.get("requests"), server.get("output tokens")
+            per_req = cost / reqs if isinstance(reqs, float) and reqs > 0 else None
+            per_m = cost / outs * 1e6 if isinstance(outs, float) and outs > 0 else None
+            w(f"  window        {window:,.1f} s  ({src})")
+            w(f"  rate          ${gpu_rate:g}/hour for the whole server")
+            w(f"  window cost   ${cost:.6f}")
+            w("  per request   " + (f"${per_req:.6f}  ({int(reqs)} requests the server finished)"
+                                    if per_req is not None else "unknown - no request count"))
+            w("  per 1M output tokens  " + (f"${per_m:,.2f}" if per_m is not None
+                                             else "unknown - no output token count"))
+            w()
+            w("  Idle time inside the window is included, because it is paid for.")
+            w("  The same GPU busier in the same window makes each request cheaper,")
+            w("  so this is the cost at the load you actually ran, not a constant.")
+            gpu = {"window": window, "cost": cost, "per_request": per_req, "per_m_output": per_m}
+        w()
+    return {"server": server, "meter": meter, "gaps": gaps, "missing": len(missing), "gpu": gpu}
 
 
 # ---------------------------------------------------------------------------
@@ -1639,6 +1683,19 @@ def _selftest(out=sys.stdout):
               and r1["server"]["output tokens"] is None
               and "prompt tokens" not in r1["gaps"] and "output tokens" not in r1["gaps"])
 
+        buf = io.StringIO()
+        r2 = reconcile(snap(5, 1000, 300), snap(7, 1250, 1300), path=p, prices=prices,
+                       gpu_rate=3.6, window=100, out=buf)
+        g = r2 and r2["gpu"]
+        check("self-hosted cost: the hour rate over the window, split by the server's requests",
+              g and close(g["cost"], 0.10) and close(g["per_request"], 0.05)
+              and close(g["per_m_output"], 100.0))
+        buf = io.StringIO()
+        r3 = reconcile(snap(5, 1000, 300), snap(7, 1250, 400), path=p, prices=prices,
+                       gpu_rate=3.6, window=0, out=buf)
+        check("self-hosted cost: no window or no requests is unknown, never $0 per request",
+              r3["gpu"]["per_request"] is None and "unknown" in buf.getvalue())
+
         # -- the claim anyone can grep -------------------------------------
         w()
         w("  what this file does not do")
@@ -1697,8 +1754,11 @@ if __name__ == "__main__":
     elif "--demo" in sys.argv:
         _demo()
     elif len(sys.argv) >= 4 and sys.argv[1] == "--reconcile":
-        mdl = sys.argv[sys.argv.index("--model") + 1] if "--model" in sys.argv else None
-        reconcile(sys.argv[2], sys.argv[3], model=mdl)
+        arg = lambda flag: sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else None
+        rate, win = arg("--gpu-rate"), arg("--window")
+        reconcile(sys.argv[2], sys.argv[3], model=arg("--model"),
+                  gpu_rate=float(rate) if rate else None,
+                  window=float(win) if win else None)
     elif len(sys.argv) > 1 and sys.argv[1] not in ("-h", "--help"):
         report(path=sys.argv[1])
     else:
