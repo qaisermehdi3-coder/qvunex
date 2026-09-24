@@ -112,6 +112,6 @@ than take the money.
 
 ## Start
 
-Message me on Reddit, **u/qaiser_mehdi**. Tell me which provider and framework
-you use and roughly how many calls a day. I will tell you straight if it is
-not a fit.
+Email **qvunexaudit@gmail.com**. Tell me which provider and framework you use,
+or which GPUs and serving stack if you run your own models, and roughly how many
+calls a day. I will tell you straight if it is not a fit.
