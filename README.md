@@ -42,6 +42,48 @@ That's the whole integration.
 
 ---
 
+## If you run your own model server (vLLM)
+
+The server already counts every request it finishes. Save its counters before
+and after your traffic, then compare:
+
+```bash
+curl -s localhost:8000/metrics > before.txt
+# ... run your traffic ...
+curl -s localhost:8000/metrics > after.txt
+python3 qvunex_single.py --reconcile before.txt after.txt --gpu-rate 0.83
+```
+
+`--gpu-rate` is what the server costs per hour. You get three things:
+
+- **Meter against server:** requests, prompt tokens and output tokens on both
+  sides, and the gap. Streamed calls that came back with no usage are recovered
+  as a total from the server's own count.
+- **Server speed:** prompt reading and answer writing per request, and output
+  for the whole server over the window.
+- **GPU cost:** the hourly rate over the window, idle time included, per
+  request and per million output tokens.
+
+The file still opens no network connection: curl saves the counters and the
+file reads them.
+
+Tested live on a Colab T4, vLLM 0.27.1, Qwen2.5-0.5B, 25 September 2026:
+
+- Meter and server agreed exactly in all 8 windows. The decode token count
+  matched vLLM's separate inter-token gap counter, 504 = 504.
+- 8 requests one at a time against 8 at once, three rounds each: per-request
+  decode 169-170 against 122-124 tokens/s, while the whole server went
+  151-154 against 701-708 tokens/s.
+
+So price by the whole-server figure. Priced from per-request speed, that load
+looks about 5.7x more expensive than it was. And skip the first window after a
+server starts: in an earlier run, 24 requests 8 at a time took 12.8 s in the
+first window and 1.0 to 1.6 s in later windows on the same server.
+
+Only vLLM's `/metrics` is read today. Other servers are not covered yet.
+
+---
+
 ## If you pay per token instead of per GPU-hour
 
 Wrap the client and name the unit of work. Two lines.
