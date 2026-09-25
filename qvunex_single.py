@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 1,850 lines, of which about 580 are the --selftest at the bottom.
+    about 1,900 lines, of which about 590 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -214,6 +214,17 @@ def extract_usage(response):
         out["tokens_out"] = _get(u, "output_tokens") or 0
         out["cache_write"] = _get(u, "cache_creation_input_tokens") or 0
         out["cache_read"] = _get(u, "cache_read_input_tokens") or 0
+        # When BOTH cache fields are missing, something in between may have
+        # dropped them: a gateway was reported doing exactly that
+        # (gravitee-io/issues#11889), where direct calls carried the fields and
+        # the same call through the gateway did not, so a call that cost about
+        # $0.022 was recorded as $0.000012 (on Anthropic input_tokens EXCLUDES
+        # the cache). Absent is not zero, so the call is marked. This is a
+        # warning only; the recorded numbers are not changed. Not yet checked
+        # against a live direct Anthropic call without caching.
+        if (_get(u, "cache_creation_input_tokens") is None
+                and _get(u, "cache_read_input_tokens") is None):
+            out["cache_unreported"] = True
         # Anthropic folds thinking into output_tokens and never reports it apart.
         out["tokens_reasoning"] = 0
         out["reasoning_billed"] = INCLUDED
@@ -907,6 +918,18 @@ def report(path=None, prices=None, out=sys.stdout):
         w("  lower bound. A low number is the one nobody audits, so it is")
         w("  marked rather than left silent.")
 
+    no_cache = [c for c in calls if c.get("status") == "ok" and c.get("cache_unreported")]
+    if no_cache:
+        w()
+        w("-" * 68)
+        w(f"  CACHE NOT REPORTED  {len(no_cache)} call(s)")
+        w("-" * 68)
+        w("  These came back in Anthropic's shape with no cache fields at all.")
+        w("  A gateway or proxy in between can drop them. If these calls used")
+        w("  prompt caching, their input is undercounted, because on Anthropic")
+        w("  input_tokens leaves the cache out, and their cost above is only a")
+        w("  lower bound. Check one call against the provider's own usage page.")
+
     if unaccounted:
         w()
         w("-" * 68)
@@ -1335,6 +1358,20 @@ def _selftest(out=sys.stdout):
         c = first(p)
         check("anthropic: input excludes cache, cache priced on its own",
               close(cost_of(c, cards), (100*3 + 50*15 + 400*3.75 + 1000*0.30) / 1e6))
+
+        # the two shapes from gravitee-io/issues#11889: direct, then through
+        # a gateway that dropped the cache fields
+        p = fresh()
+        wrap(fake({"input_tokens": 14, "output_tokens": 37,
+                   "cache_creation_input_tokens": 0,
+                   "cache_read_input_tokens": 4262})).messages.create(model="anth")
+        wrap(fake({"input_tokens": 12, "output_tokens": 20})).messages.create(model="anth")
+        direct, gw = calls_in(p)
+        buf = io.StringIO()
+        report(path=p, prices=prices, out=buf)
+        check("anthropic: cache fields missing is flagged, never read as a cache of 0",
+              not direct.get("cache_unreported") and gw.get("cache_unreported") is True
+              and "CACHE NOT REPORTED  1 call(s)" in buf.getvalue())
 
         p = fresh()
         wrap(fake({"prompt_tokens": 1000, "completion_tokens": 200, "total_tokens": 1200,

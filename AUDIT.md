@@ -27,6 +27,11 @@ A written note from your own traffic, covering:
   output tokens once the thinking was counted. Anthropic folds thinking into
   output and does not report it apart, so on Anthropic this line is not possible.
 - **Where the provider's own total and the parts do not add up.**
+- **Calls where a gateway dropped the cache counts.** On Anthropic, cached input
+  is left out of `input_tokens`, so a proxy that drops the cache fields makes
+  most of the input disappear from your cost numbers. One public report showed a
+  call costing about $0.022 recorded as $0.000012. These calls are flagged, never
+  read as zero. Checked against the shapes in that report, not yet a live gateway.
 - **Running your own model server (vLLM)?** The note also covers what one
   request costs on your GPUs at the load you actually ran, idle time included,
   and the calls your client never got a count for, reconciled against the
