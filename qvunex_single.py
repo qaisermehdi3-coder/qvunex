@@ -1141,8 +1141,10 @@ def reconcile(before, after, path=None, model=None, prices=None,
             w()
             w("  Idle time inside the window is included, because it is paid for.")
             w("  This is the cost at the load you ran, on this machine - not a")
-            w("  constant. Measure a few windows and report the spread, and skip")
-            w("  the first window after the server starts: it can run far slower.")
+            w("  constant. Measure a few windows and report the spread. On a server")
+            w("  that stays up, skip the first window after it starts: it can run")
+            w("  far slower. On one that scales to zero, every wake is that first")
+            w("  window, so measure it and pass the whole billed time as --window.")
             gpu = {"window": window, "cost": cost, "per_request": per_req, "per_m_output": per_m}
         w()
     return {"server": server, "meter": meter, "gaps": gaps, "missing": len(missing),

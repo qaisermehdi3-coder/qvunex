@@ -80,6 +80,29 @@ looks about 5.7x more expensive than it was. And skip the first window after a
 server starts: in an earlier run, 24 requests 8 at a time took 12.8 s in the
 first window and 1.0 to 1.6 s in later windows on the same server.
 
+### If your server scales to zero
+
+Every wake is a cold start, and the boot is billed too. So take the first
+snapshot as soon as the server answers, the second just before teardown, and
+pass the **whole billed time of the wake** (create to delete) as `--window`, not
+the time between the snapshots:
+
+```bash
+curl -s localhost:8000/metrics > before.txt   # right after the health check
+# ... serve this wake's requests ...
+curl -s localhost:8000/metrics > after.txt    # just before teardown
+python3 qvunex_single.py --reconcile before.txt after.txt --gpu-rate 1.72 --window 161
+```
+
+Tested live on a Colab T4, vLLM 0.27.1, 26 September 2026: one cold boot,
+8 requests, clock started before the server launched. The counters already
+exist at boot, so the first snapshot works. Meter and server agreed exactly.
+The server took about 155 s to answer and served all 8 requests in the few
+seconds after, so about 96% of the paid time was boot: priced at $1.72/hour,
+$0.0096 per request. Priced from the snapshots alone, the same wake would look
+at least 14 times cheaper. The fewer requests a wake serves, the more the boot
+dominates.
+
 Only vLLM's `/metrics` is read today. Other servers are not covered yet.
 
 ---
