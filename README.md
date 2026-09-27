@@ -103,6 +103,15 @@ $0.0096 per request. Priced from the snapshots alone, the same wake would look
 at least 14 times cheaper. The fewer requests a wake serves, the more the boot
 dominates.
 
+**Check these numbers yourself in about 10 minutes, on a free Colab T4:**
+[Open the notebook in Colab](https://colab.research.google.com/github/qaisermehdi3-coder/qvunex/blob/main/notebooks/reproduce_t4.ipynb).
+It installs vLLM, loads this file from GitHub, and runs both measurements. Run
+from GitHub on a different Colab machine on 28 September 2026, it gave: meter
+and server equal again; boot about 165 s of 171 s billed, $0.0102 per request;
+per-request decode 122-123 against 695-701 tokens/s for the whole server at 8
+requests at once. Colab will warn that the notebook was not authored by Google;
+read the three code cells first, they are short.
+
 Only vLLM's `/metrics` is read today. Other servers are not covered yet.
 
 ---
