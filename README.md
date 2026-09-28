@@ -103,6 +103,17 @@ $0.0096 per request. Priced from the snapshots alone, the same wake would look
 at least 14 times cheaper. The fewer requests a wake serves, the more the boot
 dominates.
 
+**Paid, nothing served.** If a paid window finishes 0 requests, the report
+says so in a line of its own, with the dollar amount, instead of "unknown".
+This is the failure where something keeps a scale-to-zero server awake, like
+a gateway polling `/v1/models` every few minutes. Tested live on a Colab T4,
+vLLM 0.27.1, 29 September 2026: a 60.1 s window with six `/v1/models` calls and
+six `/health` calls, and no chat requests. vLLM counted 0 requests, 0 prompt
+tokens and 0 output tokens for them, and the report printed
+`PAID, NOTHING SERVED  $0.044867 for 60.1 s with 0 requests` (priced at
+$2.689/hour). So those polls leave no trace in vLLM's request counters. The
+only sign is paid time with nothing served.
+
 **Check these numbers yourself in about 10 minutes, on a free Colab T4:**
 [Open the notebook in Colab](https://colab.research.google.com/github/qaisermehdi3-coder/qvunex/blob/main/notebooks/reproduce_t4.ipynb).
 It installs vLLM, loads this file from GitHub, and runs both measurements. Run

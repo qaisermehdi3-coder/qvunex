@@ -1131,13 +1131,29 @@ def reconcile(before, after, path=None, model=None, prices=None,
             reqs, outs = server.get("requests"), server.get("output tokens")
             per_req = cost / reqs if isinstance(reqs, float) and reqs > 0 else None
             per_m = cost / outs * 1e6 if isinstance(outs, float) and outs > 0 else None
+            # A counted zero is not a missing count: the window was paid for and
+            # the server finished nothing in it. Say so, never "unknown".
+            idle = isinstance(reqs, float) and reqs == 0
             w(f"  window        {window:,.1f} s  ({src})")
             w(f"  rate          ${gpu_rate:g}/hour for the whole server")
             w(f"  window cost   ${cost:.6f}")
-            w("  per request   " + (f"${per_req:.6f}  ({int(reqs)} requests the server finished)"
-                                    if per_req is not None else "unknown - no request count"))
-            w("  per 1M output tokens  " + (f"${per_m:,.2f}" if per_m is not None
-                                             else "unknown - no output token count"))
+            if per_req is not None:
+                w(f"  per request   ${per_req:.6f}  ({int(reqs)} requests the server finished)")
+            elif idle:
+                w("  per request   none - the server finished 0 requests in this window")
+            else:
+                w("  per request   unknown - no request count")
+            if per_m is not None:
+                w(f"  per 1M output tokens  ${per_m:,.2f}")
+            elif isinstance(outs, float) and outs == 0:
+                w("  per 1M output tokens  none - 0 output tokens in this window")
+            else:
+                w("  per 1M output tokens  unknown - no output token count")
+            if idle:
+                w()
+                w(f"  PAID, NOTHING SERVED  ${cost:.6f} for {window:,.1f} s with 0 requests")
+                w("  finished. If this server should have been idle or scaled to zero,")
+                w("  something kept it up: a health check, a model-list poll, a warm pool.")
             w()
             w("  Idle time inside the window is included, because it is paid for.")
             w("  This is the cost at the load you ran, on this machine - not a")
@@ -1145,7 +1161,8 @@ def reconcile(before, after, path=None, model=None, prices=None,
             w("  that stays up, skip the first window after it starts: it can run")
             w("  far slower. On one that scales to zero, every wake is that first")
             w("  window, so measure it and pass the whole billed time as --window.")
-            gpu = {"window": window, "cost": cost, "per_request": per_req, "per_m_output": per_m}
+            gpu = {"window": window, "cost": cost, "per_request": per_req, "per_m_output": per_m,
+                   "served_nothing": idle}
         w()
     return {"server": server, "meter": meter, "gaps": gaps, "missing": len(missing),
             "gpu": gpu, "speed": speed}
@@ -1805,6 +1822,14 @@ def _selftest(out=sys.stdout):
                        gpu_rate=3.6, window=0, out=buf)
         check("self-hosted cost: no window or no requests is unknown, never $0 per request",
               r3["gpu"]["per_request"] is None and "unknown" in buf.getvalue())
+        buf = io.StringIO()
+        r3b = reconcile(snap(5, 1000, 300), snap(5, 1000, 300), path=p, prices=prices,
+                        gpu_rate=3.6, window=100, out=buf)
+        g = r3b["gpu"]
+        check("self-hosted cost: a paid window with 0 requests says nothing was served, not unknown",
+              g["per_request"] is None and g["served_nothing"] is True and close(g["cost"], 0.10)
+              and "PAID, NOTHING SERVED" in buf.getvalue()
+              and "unknown - no request count" not in buf.getvalue())
 
         def hist(kv, pre, dec):
             lab = f'{{engine="0",model_name="{m}"}}'
