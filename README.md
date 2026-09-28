@@ -112,6 +112,24 @@ per-request decode 122-123 against 695-701 tokens/s for the whole server at 8
 requests at once. Colab will warn that the notebook was not authored by Google;
 read the three code cells first, they are short.
 
+**The same two measurements on an H100.** On 28 September 2026 they ran on a
+rented 1x H100 SXM 80GB (vast.ai, 20 vCPUs, $2.689/hour, the vLLM 0.27.1
+image), from a terminal instead of Colab:
+
+```bash
+mkdir -p /content && cd /content
+curl -sL -o reproduce_t4.ipynb https://raw.githubusercontent.com/qaisermehdi3-coder/qvunex/main/notebooks/reproduce_t4.ipynb
+curl -sL -o qvunex_single.py https://raw.githubusercontent.com/qaisermehdi3-coder/qvunex/main/qvunex_single.py
+python3 -c "import json;nb=json.load(open('reproduce_t4.ipynb'));open('run.py','w').write(chr(10).join(''.join(c['source']) for c in nb['cells'][2:]).replace('RATE = 1.72','RATE = 2.689'))"
+python3 run.py
+```
+
+Meter and server were equal in every window. The server answered after about
+75 s of 77.3 s billed, so about 97% of the wake was boot: $0.0072 per request.
+One at a time, per-request decode was 648-649 tokens/s and the whole server
+589-593. At 8 requests at once, per-request decode was 549-573 tokens/s and
+the whole server 3,194-3,348. That is 5.7-5.8x, the same ratio as on the T4.
+
 Only vLLM's `/metrics` is read today. Other servers are not covered yet.
 
 ---
