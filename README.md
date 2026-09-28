@@ -114,6 +114,15 @@ tokens and 0 output tokens for them, and the report printed
 $2.689/hour). So those polls leave no trace in vLLM's request counters. The
 only sign is paid time with nothing served.
 
+**Two servers on one GPU.** Each vLLM server keeps its own counters, so work
+stays attributed to the right server even when several share a GPU. Tested
+live on a Colab T4, vLLM 0.27.1, 29 September 2026: two servers on the same
+T4 as two processes (5450 and 5888 MiB; no MIG, no MPS, no Kubernetes), 8
+requests to one and 3 to the other in the same window. Each server counted
+only its own work, 8 requests / 288 prompt / 91 output tokens and 3 / 108 / 30,
+and both matched what the client recorded exactly. Not tested yet: Kubernetes
+time-slicing itself, or a GPU monitor such as DCGM side by side.
+
 **Check these numbers yourself in about 10 minutes, on a free Colab T4:**
 [Open the notebook in Colab](https://colab.research.google.com/github/qaisermehdi3-coder/qvunex/blob/main/notebooks/reproduce_t4.ipynb).
 It installs vLLM, loads this file from GitHub, and runs both measurements. Run
