@@ -103,6 +103,24 @@ $0.0096 per request. Priced from the snapshots alone, the same wake would look
 at least 14 times cheaper. The fewer requests a wake serves, the more the boot
 dominates.
 
+**Where one wake's bill went.** Pass the whole billed time as `--window`,
+plus `--boot` (billing start to the first snapshot) and `--tail` (second
+snapshot to billing end, the cooldown before the server is torn down):
+
+```bash
+python3 qvunex_single.py --reconcile before.txt after.txt --gpu-rate 2.689 --window 226 --boot 160.2 --tail 60
+```
+
+The report splits the bill into boot, the serving window between the
+snapshots, and the tail, in seconds, share and dollars. A part you leave out
+is shown as unknown, never as 0. Tested live on a Colab T4, vLLM 0.27.1,
+2 October 2026: one cold wake, 8 requests, then 60 s answering only health
+checks, like a cooldown timer. Boot 160.2 s (70.9%), serving 5.8 s (2.6%),
+tail 60.0 s (26.6%), meter and server equal. On a real setup the tail is set
+by timers and can be much longer. In one published GKE run (KEDA 300 s
+cooldown, then the autoscaler's 600 s unneeded time), the tail was about 62%
+of the GPU node's time, and serving about 1%.
+
 **Paid, nothing served.** If a paid window finishes 0 requests, the report
 says so in a line of its own, with the dollar amount, instead of "unknown".
 This is the failure where something keeps a scale-to-zero server awake, like

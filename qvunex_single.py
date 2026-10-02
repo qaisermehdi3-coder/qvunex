@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 1,900 lines, of which about 590 are the --selftest at the bottom.
+    about 2,000 lines, of which about 640 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -45,6 +45,11 @@ Measures what each LLM call actually costs and what a finished task costs.
     It also prints how fast the server read prompts and wrote answers, per
     request and for the whole server. Add --gpu-rate 0.83 (dollars per hour
     for the server) to see what each request cost at the load you actually ran.
+
+    Server that scales to zero? Pass the whole billed time of the wake as
+    --window, and add --boot (billing start to the first snapshot) and --tail
+    (second snapshot to billing end). It splits the bill into boot, serving and
+    the idle tail after the work.
 
     Try it with no API key and no network:
 
@@ -1003,11 +1008,16 @@ def _read_prometheus(path):
 
 
 def reconcile(before, after, path=None, model=None, prices=None,
-              gpu_rate=None, window=None, out=sys.stdout):
+              gpu_rate=None, window=None, boot=None, tail=None, out=sys.stdout):
     """Compare what the meter recorded with what a vLLM server counted.
 
     With gpu_rate (dollars per hour for the whole server) it also prices the
     window the way self-hosting is actually billed: by the hour, busy or idle.
+
+    For a server that scales to zero, pass the whole billed time of the wake as
+    window, plus boot (billing start to the first snapshot) and tail (second
+    snapshot to billing end). The report then splits the bill into boot, the
+    serving window between the snapshots, and the tail after it.
     """
     w = lambda s="": print(s, file=out)
     b, a = _read_prometheus(before), _read_prometheus(after)
@@ -1161,12 +1171,54 @@ def reconcile(before, after, path=None, model=None, prices=None,
             w("  that stays up, skip the first window after it starts: it can run")
             w("  far slower. On one that scales to zero, every wake is that first")
             w("  window, so measure it and pass the whole billed time as --window.")
+            split = _wake_split(window, boot, tail, gpu_rate, w)
             gpu = {"window": window, "cost": cost, "per_request": per_req, "per_m_output": per_m,
-                   "served_nothing": idle}
+                   "served_nothing": idle, "split": split}
         w()
     return {"server": server, "meter": meter, "gaps": gaps, "missing": len(missing),
             "gpu": gpu, "speed": speed}
 
+
+
+def _wake_split(window, boot, tail, gpu_rate, w):
+    """Where one billed wake went: boot, serving window, tail. Seconds and dollars.
+
+    Only what was given is split. A part that was not given is unknown, never
+    zero, and then the serving window is unknown too, because it is what is
+    left over. Parts that add up to more than the window are refused.
+    """
+    if boot is None and tail is None:
+        return None
+    w()
+    w("  WHERE THE BILLED TIME WENT")
+    parts = {"boot": boot, "tail": tail}
+    for k, v in parts.items():
+        if v is not None and v < 0:
+            w(f"  {k} is negative ({v:g} s) - not split.")
+            return None
+    known = sum(v for v in parts.values() if v is not None)
+    if known > window:
+        w(f"  boot and tail add up to {known:,.1f} s, more than the {window:,.1f} s")
+        w("  window - they cannot all be in this bill. Not split.")
+        return None
+    serving = window - boot - tail if boot is not None and tail is not None else None
+    split = {"boot": boot, "serving": serving, "tail": tail}
+    names = {"boot": "boot (billing start to first snapshot)",
+             "serving": "serving window (between snapshots)",
+             "tail": "tail (second snapshot to billing end)"}
+    for k in ("boot", "serving", "tail"):
+        v = split[k]
+        if v is None:
+            why = "not given" if k != "serving" else "needs both boot and tail"
+            w(f"    {names[k]:<40} unknown - {why}")
+        else:
+            w(f"    {names[k]:<40} {v:>8,.1f} s  {100 * v / window:5.1f}%"
+              f"  ${gpu_rate * v / 3600.0:.6f}")
+    if serving is not None and tail > serving:
+        w("  The tail after the last snapshot cost more than the serving window.")
+    if serving is not None and boot > serving:
+        w("  The boot cost more than the serving window.")
+    return split
 
 def _delta(b, a, metric, models):
     """after - before for one counter; None if absent, "reset" if it went down."""
@@ -1830,6 +1882,26 @@ def _selftest(out=sys.stdout):
               g["per_request"] is None and g["served_nothing"] is True and close(g["cost"], 0.10)
               and "PAID, NOTHING SERVED" in buf.getvalue()
               and "unknown - no request count" not in buf.getvalue())
+        buf = io.StringIO()
+        r3c = reconcile(snap(5, 1000, 300), snap(7, 1250, 400), path=p, prices=prices,
+                        gpu_rate=3.6, window=100, boot=40, tail=50, out=buf)
+        sp = r3c["gpu"]["split"]
+        check("wake split: boot, serving and tail add up to the billed window",
+              sp and close(sp["serving"], 10.0) and close(sp["boot"], 40.0)
+              and close(sp["tail"], 50.0) and "$0.050000" in buf.getvalue()
+              and "tail after the last snapshot cost more" in buf.getvalue())
+        buf = io.StringIO()
+        r3d = reconcile(snap(5, 1000, 300), snap(7, 1250, 400), path=p, prices=prices,
+                        gpu_rate=3.6, window=100, boot=40, out=buf)
+        sp = r3d["gpu"]["split"]
+        check("wake split: a part not given is unknown, never 0",
+              sp and sp["tail"] is None and sp["serving"] is None
+              and buf.getvalue().count("unknown - ") >= 2)
+        buf = io.StringIO()
+        r3e = reconcile(snap(5, 1000, 300), snap(7, 1250, 400), path=p, prices=prices,
+                        gpu_rate=3.6, window=100, boot=60, tail=50, out=buf)
+        check("wake split: parts larger than the window are refused, not shown",
+              r3e["gpu"]["split"] is None and "Not split" in buf.getvalue())
 
         def hist(kv, pre, dec):
             lab = f'{{engine="0",model_name="{m}"}}'
@@ -1917,9 +1989,12 @@ if __name__ == "__main__":
     elif len(sys.argv) >= 4 and sys.argv[1] == "--reconcile":
         arg = lambda flag: sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else None
         rate, win = arg("--gpu-rate"), arg("--window")
+        boot, tail = arg("--boot"), arg("--tail")
         reconcile(sys.argv[2], sys.argv[3], model=arg("--model"),
                   gpu_rate=float(rate) if rate else None,
-                  window=float(win) if win else None)
+                  window=float(win) if win else None,
+                  boot=float(boot) if boot else None,
+                  tail=float(tail) if tail else None)
     elif len(sys.argv) > 1 and sys.argv[1] not in ("-h", "--help"):
         report(path=sys.argv[1])
     else:
