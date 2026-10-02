@@ -44,6 +44,10 @@ That's the whole integration.
 
 ## If you run your own model server (vLLM)
 
+The method behind this section is written up on one page, so you can follow it
+with or without this tool: [METHOD.md](METHOD.md), how to price one GPU wake,
+billed time against served work.
+
 The server already counts every request it finishes. Save its counters before
 and after your traffic, then compare:
 
