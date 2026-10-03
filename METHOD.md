@@ -1,9 +1,10 @@
 # How to price one GPU wake: billed against served
 
-Version 0.1, 2 October 2026. A short method for working out what a self-hosted
-or scale-to-zero inference server cost, from the bill and from the server's own
-counters. Anyone can use it; you do not need qvunex to follow it.
-`qvunex_single.py --reconcile` is one implementation.
+Version 0.2, 3 October 2026 (0.1 was 2 October; 0.2 adds rule 8). A short
+method for working out what a self-hosted or scale-to-zero inference server
+cost, from the bill and from the server's own counters. Anyone can use it; you
+do not need qvunex to follow it. `qvunex_single.py --reconcile` and `--idle`
+are one implementation.
 
 Every rule below comes from a live run, listed at the end.
 
@@ -53,6 +54,13 @@ bill, and in money.
    monitor.
 7. **Check the meter against the server.** What your client recorded and what
    the server counted should match exactly; a gap is a finding, not noise.
+8. **On a server that stays up, take snapshots on a fixed interval and judge
+   each window on its own.** Every window between two snapshots is served,
+   paid with nothing served, or unknown. A counter that is missing, or that
+   went down (a restart resets it), makes that window unknown, never idle. Add
+   up the three: the "nothing served" total is the part of the bill that
+   bought no work. Name each snapshot by its Unix time so the window lengths
+   survive copying (a file's own time can change when it is copied).
 
 ## 4. Evidence (all on vLLM 0.27.1)
 
@@ -68,6 +76,10 @@ bill, and in money.
 - Per-request vs whole server, 8 requests at once: T4 122-124 vs 701-708 tok/s;
   H100 SXM 549-573 vs 3,194-3,348 tok/s. About 5.7x on both.
 - Scale-to-zero boot share: T4 about 165 of 171 s; H100 SXM about 75 of 77 s.
+- Windows over time, Colab T4, 3 October 2026: 6 snapshots 30 s apart, planned
+  idle, busy, idle, idle, busy (busy = 4 chat requests, idle = one `/health`
+  call). Marked exactly that way: 60 s served, 90 s (60%) paid with nothing
+  served, 0 s unknown.
 
 ## 5. What this method does not cover
 
