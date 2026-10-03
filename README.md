@@ -145,6 +145,27 @@ only its own work, 8 requests / 288 prompt / 91 output tokens and 3 / 108 / 30,
 and both matched what the client recorded exactly. Not tested yet: Kubernetes
 time-slicing itself, or a GPU monitor such as DCGM side by side.
 
+**Which hours were paid for nothing.** On a server that stays up, save the
+counters every few minutes and hand them all to `--idle`. Each window between
+two snapshots is marked served, PAID, NOTHING SERVED, or unknown (a counter
+missing, or a server restart that reset the counters, is never counted as
+idle). Name each file by the Unix time, as below, and the window lengths come
+from the names:
+
+```bash
+mkdir -p snaps
+curl -s localhost:8000/metrics > snaps/$(date +%s).txt   # repeat every 5 minutes
+python3 qvunex_single.py --idle snaps/*.txt --gpu-rate 2.689
+```
+
+Tested live on a Colab T4, vLLM 0.27.1, 3 October 2026: 6 snapshots 30 s
+apart, with a planned order of idle, busy, idle, idle, busy (busy = 4 chat
+requests; idle = only a `/health` call). The report matched the plan window
+for window: windows 2 and 5 served 4 requests each (40 and 62 output tokens),
+windows 1, 3 and 4 were PAID, NOTHING SERVED. Of 150 s, 60 s served
+($0.044817) and 90 s, 60%, paid for nothing ($0.067225), at $2.689/hour;
+0 s unknown.
+
 **Check these numbers yourself in about 10 minutes, on a free Colab T4:**
 [Open the notebook in Colab](https://colab.research.google.com/github/qaisermehdi3-coder/qvunex/blob/main/notebooks/reproduce_t4.ipynb).
 It installs vLLM, loads this file from GitHub, and runs both measurements. Run

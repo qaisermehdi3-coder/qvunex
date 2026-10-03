@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 2,000 lines, of which about 640 are the --selftest at the bottom.
+    about 2,100 lines, of which about 660 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -50,6 +50,12 @@ Measures what each LLM call actually costs and what a finished task costs.
     --window, and add --boot (billing start to the first snapshot) and --tail
     (second snapshot to billing end). It splits the bill into boot, serving and
     the idle tail after the work.
+
+    Want to know when a server sat paid and idle? Save its counters on a timer,
+    e.g. `curl -s localhost:8000/metrics > snaps/$(date +%s).txt` every five
+    minutes, then run `--idle snaps/*.txt --gpu-rate 2.69`. Every window
+    between two snapshots is marked served, paid with nothing served, or
+    unknown (a missing counter or a restart is never counted as idle).
 
     Try it with no API key and no network:
 
@@ -1220,6 +1226,67 @@ def _wake_split(window, boot, tail, gpu_rate, w):
         w("  The boot cost more than the serving window.")
     return split
 
+
+def idle_series(paths, gpu_rate=None, out=sys.stdout):
+    """Walk a series of saved /metrics snapshots and mark every window between
+    two of them as served, paid-with-nothing-served, or unknown.
+
+    Window times come from the file name when it is a Unix time (what
+    `curl ... > snaps/$(date +%s).txt` writes), otherwise from the file's
+    modification time. A missing counter is unknown and a counter that went
+    down means the server restarted: neither is ever counted as idle.
+    """
+    import os as _os
+    w = lambda s="": print(s, file=out)
+
+    def stamp(path):
+        stem = _os.path.splitext(_os.path.basename(path))[0]
+        try:
+            return float(stem), "file name"
+        except ValueError:
+            return _os.path.getmtime(path), "file time"
+
+    snaps = sorted((stamp(p) + (p,) for p in paths), key=lambda t: t[0])
+    if len(snaps) < 2:
+        w("  Need at least two snapshots.")
+        return None
+    rows, served_s, idle_s, unknown_s = [], 0.0, 0.0, 0.0
+    w("=" * 68)
+    w("  QVUNEX IDLE  what each window between snapshots served")
+    w("=" * 68)
+    w(f"  {len(snaps)} snapshots, times from the {snaps[0][1]}")
+    w()
+    for (t0, _, p0), (t1, _, p1) in zip(snaps, snaps[1:]):
+        b, a = _read_prometheus(p0), _read_prometheus(p1)
+        models = sorted({k[1] for d in (a, b) for k in d
+                         if k[0] == "vllm:request_success_total"} - {None})
+        dt = t1 - t0
+        reqs = _delta(b, a, "vllm:request_success_total", models) if models else None
+        outs = _delta(b, a, "vllm:request_generation_tokens_sum", models) if models else None
+        if reqs is None or dt <= 0:
+            state, unknown_s = "unknown - counter missing or times out of order", unknown_s + max(dt, 0)
+        elif reqs == "reset":
+            state, unknown_s = "unknown - counter went down (server restarted?)", unknown_s + dt
+        elif reqs == 0:
+            state, idle_s = "PAID, NOTHING SERVED", idle_s + dt
+        else:
+            o = f", {int(outs):,} output tokens" if isinstance(outs, float) else ""
+            state, served_s = f"served {int(reqs)} requests{o}", served_s + dt
+        rows.append({"start": t0, "seconds": dt, "requests": reqs, "state": state})
+        w(f"  {_os.path.basename(p0)} -> {_os.path.basename(p1)}  {dt:>9,.1f} s  {state}")
+    total = served_s + idle_s + unknown_s
+    w()
+    w(f"  total          {total:>10,.1f} s")
+    for name, v in (("served", served_s), ("nothing served", idle_s), ("unknown", unknown_s)):
+        share = f"{100 * v / total:5.1f}%" if total > 0 else "  -  "
+        cost = f"  ${gpu_rate * v / 3600.0:.6f}" if gpu_rate is not None else ""
+        w(f"  {name:<14} {v:>10,.1f} s  {share}{cost}")
+    if unknown_s:
+        w("  Unknown windows are not counted as idle: the server's counters cannot")
+        w("  say what happened in them.")
+    w()
+    return {"windows": rows, "served_s": served_s, "idle_s": idle_s, "unknown_s": unknown_s}
+
 def _delta(b, a, metric, models):
     """after - before for one counter; None if absent, "reset" if it went down."""
     bv = [b[(metric, m)] for m in models if (metric, m) in b]
@@ -1902,6 +1969,25 @@ def _selftest(out=sys.stdout):
                         gpu_rate=3.6, window=100, boot=60, tail=50, out=buf)
         check("wake split: parts larger than the window are refused, not shown",
               r3e["gpu"]["split"] is None and "Not split" in buf.getvalue())
+        sd = tempfile.mkdtemp()
+        def snapfile(t, req, gt, drop=False):
+            lab = f'{{engine="0",model_name="{m}"}}'
+            body = "" if drop else f"vllm:request_success_total{lab} {req}\n"
+            body += f"vllm:request_generation_tokens_sum{lab} {gt}\n"
+            fp = os.path.join(sd, f"{t}.txt"); open(fp, "w").write(body); return fp
+        files = [snapfile(1000, 0, 0), snapfile(1300, 0, 0), snapfile(1600, 5, 300),
+                 snapfile(1900, 5, 300), snapfile(2200, 2, 50)]
+        buf = io.StringIO()
+        ri = idle_series(list(reversed(files)), gpu_rate=3.6, out=buf)
+        check("idle series: zero-request windows are paid with nothing served, in time order",
+              ri and close(ri["idle_s"], 600.0) and close(ri["served_s"], 300.0)
+              and "$0.600000" in buf.getvalue() and "served 5 requests" in buf.getvalue())
+        check("idle series: a restarted server's window is unknown, never idle",
+              ri and close(ri["unknown_s"], 300.0) and "server restarted" in buf.getvalue())
+        buf = io.StringIO()
+        rj = idle_series([snapfile(3000, 0, 0), snapfile(3300, 0, 0, drop=True)], out=buf)
+        check("idle series: a missing counter is unknown, not idle",
+              rj and close(rj["idle_s"], 0.0) and close(rj["unknown_s"], 300.0))
 
         def hist(kv, pre, dec):
             lab = f'{{engine="0",model_name="{m}"}}'
@@ -1986,6 +2072,12 @@ if __name__ == "__main__":
         sys.exit(_selftest())
     elif "--demo" in sys.argv:
         _demo()
+    elif len(sys.argv) >= 4 and sys.argv[1] == "--idle":
+        rest = sys.argv[2:]
+        rate = None
+        if "--gpu-rate" in rest:
+            k = rest.index("--gpu-rate"); rate = float(rest[k + 1]); del rest[k:k + 2]
+        idle_series(rest, gpu_rate=rate)
     elif len(sys.argv) >= 4 and sys.argv[1] == "--reconcile":
         arg = lambda flag: sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else None
         rate, win = arg("--gpu-rate"), arg("--window")
