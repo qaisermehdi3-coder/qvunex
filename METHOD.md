@@ -1,6 +1,6 @@
 # How to price one GPU wake: billed against served
 
-Version 0.2, 3 October 2026 (0.1 was 2 October; 0.2 adds rule 8). A short
+Version 0.3, 4 October 2026 (0.2 added rule 8; 0.3 adds SGLang). A short
 method for working out what a self-hosted or scale-to-zero inference server
 cost, from the bill and from the server's own counters. Anyone can use it; you
 do not need qvunex to follow it. `qvunex_single.py --reconcile` and `--idle`
@@ -16,7 +16,10 @@ Every rule below comes from a live run, listed at the end.
 - **Served work**: what the inference server itself counted in that time:
   requests finished, prompt tokens, output tokens. For vLLM these are
   `vllm:request_success_total`, `vllm:request_prompt_tokens_sum` and
-  `vllm:request_generation_tokens_sum` on `/metrics`.
+  `vllm:request_generation_tokens_sum` on `/metrics`. For SGLang (started
+  with `--enable-metrics`) they are `sglang:num_requests_total`,
+  `sglang:prompt_tokens_total` and `sglang:generation_tokens_total`; add up
+  the streamed and not-streamed series.
 
 Cost per request and cost per token are billed time priced, divided by served
 work. Never the other way round, and never from a speed measured on one
@@ -41,14 +44,17 @@ bill, and in money.
 2. **Paid with nothing served is its own line.** If a paid window finished 0
    requests, report it as such, with the amount, not as "unknown".
    Health checks and `/v1/models` calls do not count as served work: on vLLM
-   0.27.1 they leave the request counters at 0.
+   0.27.1 and SGLang 0.5.21 they leave the request counters unchanged. On
+   SGLang, `/health` even runs a one-token generation on the GPU and is still
+   not counted, so GPU activity alone does not mean work was served.
 3. **Price by whole-server output over the billed time, idle included.** With
    several requests at once, per-request speed falls while the server's total
    rises. Pricing from one request's speed overstates cost.
 4. **Do not price a scale-to-zero server from the serving window alone.** Every
    wake is a cold start; pass the whole billed time.
 5. **On a server that stays up, skip the first window after start**, or report
-   it apart: it can run far slower.
+   it apart: it can run far slower. Take the first snapshot only once the
+   server answers: SGLang counts its own startup warmup request.
 6. **Counters belong to the server process.** Two servers sharing one GPU each
    count only their own work, so attribution per server holds without a GPU
    monitor.
@@ -62,7 +68,7 @@ bill, and in money.
    bought no work. Name each snapshot by its Unix time so the window lengths
    survive copying (a file's own time can change when it is copied).
 
-## 4. Evidence (all on vLLM 0.27.1)
+## 4. Evidence (vLLM 0.27.1 unless marked SGLang)
 
 - Wake split, Colab T4, 2 October 2026, two machines: boot 70.9% / 70.2%,
   serving 2.6% / 2.6%, a 60 s health-check tail 26.6% / 27.1%.
@@ -80,10 +86,17 @@ bill, and in money.
   idle, busy, idle, idle, busy (busy = 4 chat requests, idle = one `/health`
   call). Marked exactly that way: 60 s served, 90 s (60%) paid with nothing
   served, 0 s unknown.
+- SGLang 0.5.21, Colab T4, 4 October 2026: 8 chat requests counted as exactly
+  the client's 8 / 264 / 80; 6 `/health` and 6 `/v1/models` calls counted as
+  nothing; 2 streams without `stream_options` (no usage at the client) still
+  counted; a 1 / 6 / 8 warmup request already counted at startup. With a
+  wrapped client, meter and server matched on requests (6 and 6) and the token
+  gap was exactly the two streams. Idle, busy, idle windows marked that way.
 
 ## 5. What this method does not cover
 
-- Servers that do not export request and token counters (only vLLM tested).
+- Servers other than vLLM and SGLang, and servers that do not export request
+  and token counters.
 - Training jobs.
 - Kubernetes GPU time-slicing and MIG, and comparison with DCGM, are not tested.
 

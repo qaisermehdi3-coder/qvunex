@@ -42,7 +42,7 @@ That's the whole integration.
 
 ---
 
-## If you run your own model server (vLLM)
+## If you run your own model server (vLLM or SGLang)
 
 The method behind this section is written up on one page, so you can follow it
 with or without this tool: [METHOD.md](METHOD.md), how to price one GPU wake,
@@ -193,7 +193,31 @@ One at a time, per-request decode was 648-649 tokens/s and the whole server
 589-593. At 8 requests at once, per-request decode was 549-573 tokens/s and
 the whole server 3,194-3,348. That is 5.7-5.8x, the same ratio as on the T4.
 
-Only vLLM's `/metrics` is read today. Other servers are not covered yet.
+**SGLang too.** Start SGLang with `--enable-metrics` and the same commands
+work on its `/metrics` (port 30000 by default); the report names which server
+the counters came from. It reads SGLang's `sglang:num_requests_total`,
+`sglang:prompt_tokens_total` and `sglang:generation_tokens_total`, streamed and
+not streamed added together. Per-request speed is not read for SGLang yet,
+only the whole-server figure.
+
+Tested live on a Colab T4, SGLang 0.5.21, 4 October 2026. 8 chat requests
+moved its counters by exactly what the client got back: 8 requests, 264 prompt
+and 80 output tokens. Then, through this file's wrapper, 4 chat requests and 2
+streams sent without `stream_options`: the meter recorded 6 calls, 2 with no
+usage; the server counted 6 requests, and `--reconcile` showed requests +0 and
+a token gap of +66 prompt and +64 output, the two streams. `--idle` over three
+20 s windows planned idle, busy, idle marked them exactly that way.
+
+Two things differ from vLLM. SGLang's `/health` runs a one-token generation on
+the GPU every time it is called (its own code says so), yet the request
+counters stayed still through six `/health` calls and through the idle windows
+above. So on SGLang a health check uses the GPU and still leaves no trace in
+the counts. And SGLang sends itself one warmup request at startup, which is
+already counted when the server first answers (1 request, 6 prompt, 8 output
+on that run): take the first snapshot after the server answers, and that
+request falls before your window.
+
+Other servers are not covered yet.
 
 ---
 

@@ -9,7 +9,7 @@ Measures what each LLM call actually costs and what a finished task costs.
     Several people told me the same thing: they will not pip install a package
     from a stranger onto a machine that holds production credentials. Fair. So
     this is one file you can read in one sitting and paste into your own tree:
-    about 2,100 lines, of which about 660 are the --selftest at the bottom.
+    about 2,200 lines, of which about 670 are the --selftest at the bottom.
     Standard library only. No network code anywhere — grep it. Nothing leaves
     the machine; it appends JSON lines to a file on your own disk.
 
@@ -37,13 +37,14 @@ Measures what each LLM call actually costs and what a finished task costs.
 
     Without that, those calls are marked usage missing, never counted as $0.
 
-    Running your own model server (vLLM)? Streams may come back with no usage,
-    but the server still counts. Save its counters before and after, then:
+    Running your own model server (vLLM, or SGLang started with
+    --enable-metrics)? Streams may come back with no usage, but the server
+    still counts. Save its counters before and after, then:
 
         python3 qvunex_single.py --reconcile before.txt after.txt
 
     It also prints how fast the server read prompts and wrote answers, per
-    request and for the whole server. Add --gpu-rate 0.83 (dollars per hour
+    request (vLLM only, for now) and for the whole server. Add --gpu-rate 0.83 (dollars per hour
     for the server) to see what each request cost at the load you actually ran.
 
     Server that scales to zero? Pass the whole billed time of the wake as
@@ -987,6 +988,35 @@ _SERVER_METRICS = (
     ("output tokens", "vllm:request_generation_tokens_sum"),
 )
 
+# SGLang (started with --enable-metrics) keeps the same three counts under its
+# own names, split by an is_streaming label that is summed here. Checked live
+# on a Colab T4, SGLang 0.5.21, 4 October 2026: 8 chat requests moved them by
+# exactly the client's 8 / 264 / 80; 2 streams sent without stream_options
+# (so the client got no usage) were still counted, 2 / 66 / 64; and six
+# /health plus six /v1/models calls left them unchanged, although SGLang's
+# /health runs a one-token generation on the GPU, flagged not to be counted.
+# SGLang's own warmup request at startup is already counted (1 / 6 / 8) by the
+# time the server answers, so it falls in the first snapshot, not the window.
+_ENGINES = (
+    ("vLLM", _SERVER_METRICS),
+    ("SGLang", (
+        ("requests", "sglang:num_requests_total"),
+        ("prompt tokens", "sglang:prompt_tokens_total"),
+        ("output tokens", "sglang:generation_tokens_total"),
+    )),
+)
+
+
+def _engine(*snaps):
+    """(name, metrics) for the server these snapshots came from, or (None, None).
+
+    Decided by which request counter is present. Snapshots holding both
+    engines' counters are refused: one window must be one server.
+    """
+    found = [(n, ms) for n, ms in _ENGINES
+             if any(k[0] == ms[0][1] for d in snaps for k in d)]
+    return found[0] if len(found) == 1 else (None, "both" if found else None)
+
 
 def _read_prometheus(path):
     """{(metric, model_name): value}, summed over engines and finish reasons."""
@@ -1015,7 +1045,7 @@ def _read_prometheus(path):
 
 def reconcile(before, after, path=None, model=None, prices=None,
               gpu_rate=None, window=None, boot=None, tail=None, out=sys.stdout):
-    """Compare what the meter recorded with what a vLLM server counted.
+    """Compare what the meter recorded with what a vLLM or SGLang server counted.
 
     With gpu_rate (dollars per hour for the whole server) it also prices the
     window the way self-hosting is actually billed: by the hour, busy or idle.
@@ -1027,7 +1057,9 @@ def reconcile(before, after, path=None, model=None, prices=None,
     """
     w = lambda s="": print(s, file=out)
     b, a = _read_prometheus(before), _read_prometheus(after)
-    models = sorted({k[1] for k in a if k[0] == "vllm:request_success_total"} - {None})
+    engine, metrics = _engine(b, a)
+    req_metric = metrics[0][1] if engine else None
+    models = sorted({k[1] for k in a if k[0] == req_metric} - {None}) if engine else []
     if model:
         models = [m for m in models if m == model]
 
@@ -1047,15 +1079,21 @@ def reconcile(before, after, path=None, model=None, prices=None,
     w("  QVUNEX RECONCILE  meter vs server")
     w("=" * 68)
     w(f"  events        {path}  ({len(calls)} calls)")
-    w(f"  server        {', '.join(models) if models else 'no vLLM request counters found'}")
+    if metrics == "both":
+        w("  server        both vLLM and SGLang counters found")
+        w()
+        w("  Nothing to compare: one pair of snapshots must come from one server.")
+        return None
+    w(f"  server        {', '.join(models) + f'  ({engine})' if models else 'no vLLM or SGLang request counters found'}")
     if not models:
         w()
-        w("  Nothing to compare: the snapshots hold no vllm:request_success_total.")
-        w("  Check that they are vLLM /metrics output, taken from the same server.")
+        w("  Nothing to compare: the snapshots hold no vllm:request_success_total")
+        w("  and no sglang:num_requests_total. Check that they are /metrics output")
+        w("  from the same server (SGLang needs --enable-metrics).")
         return None
 
     server = {}
-    for label, metric in _SERVER_METRICS:
+    for label, metric in metrics:
         before_v = [b[(metric, m)] for m in models if (metric, m) in b]
         after_v = [a[(metric, m)] for m in models if (metric, m) in a]
         if len(after_v) != len(models) or len(before_v) != len(models):
@@ -1078,7 +1116,7 @@ def reconcile(before, after, path=None, model=None, prices=None,
     w()
     w("  %-16s %14s %14s %14s" % ("", "server", "meter", "gap"))
     gaps = {}
-    for label, _ in _SERVER_METRICS:
+    for label, _ in metrics:
         s = server[label]
         if s is None:
             w("  %-16s %14s %14s %14s" % (label, "not in snapshot", f"{meter[label]:,}", "unknown"))
@@ -1092,7 +1130,7 @@ def reconcile(before, after, path=None, model=None, prices=None,
     w()
     w(f"  {len(missing)} of {len(ok)} successful call(s) came back with no usage.")
 
-    if any(server[l] in (None, "reset") for l, _ in _SERVER_METRICS):
+    if any(server[l] in (None, "reset") for l, _ in metrics):
         w()
         w("  Some server counters are missing or went backwards (a restart between")
         w("  the snapshots). Those rows cannot be reconciled and are left unknown.")
@@ -1131,7 +1169,7 @@ def reconcile(before, after, path=None, model=None, prices=None,
             src = "from the snapshot files' times"
         except OSError:
             window = None
-    speed = _server_speed(b, a, models, window, src, w)
+    speed = _server_speed(b, a, models, window, src, w, engine, metrics)
     gpu = None
     if gpu_rate is not None:
         # Self-hosted cost is the GPU's hourly price for the time it was held,
@@ -1182,7 +1220,7 @@ def reconcile(before, after, path=None, model=None, prices=None,
                    "served_nothing": idle, "split": split}
         w()
     return {"server": server, "meter": meter, "gaps": gaps, "missing": len(missing),
-            "gpu": gpu, "speed": speed}
+            "gpu": gpu, "speed": speed, "engine": engine}
 
 
 
@@ -1258,11 +1296,12 @@ def idle_series(paths, gpu_rate=None, out=sys.stdout):
     w()
     for (t0, _, p0), (t1, _, p1) in zip(snaps, snaps[1:]):
         b, a = _read_prometheus(p0), _read_prometheus(p1)
-        models = sorted({k[1] for d in (a, b) for k in d
-                         if k[0] == "vllm:request_success_total"} - {None})
+        engine, metrics = _engine(b, a)
+        rq, ot = (metrics[0][1], metrics[2][1]) if engine else (None, None)
+        models = sorted({k[1] for d in (a, b) for k in d if k[0] == rq} - {None}) if engine else []
         dt = t1 - t0
-        reqs = _delta(b, a, "vllm:request_success_total", models) if models else None
-        outs = _delta(b, a, "vllm:request_generation_tokens_sum", models) if models else None
+        reqs = _delta(b, a, rq, models) if models else None
+        outs = _delta(b, a, ot, models) if models else None
         if reqs is None or dt <= 0:
             state, unknown_s = "unknown - counter missing or times out of order", unknown_s + max(dt, 0)
         elif reqs == "reset":
@@ -1316,14 +1355,30 @@ def _delta(b, a, metric, models):
 # more. Cost comes from the whole server; the per-request speed is what one
 # user waits for. Both are printed, never one passed off as the other.
 
-def _server_speed(b, a, models, window, src, w):
+def _server_speed(b, a, models, window, src, w, engine="vLLM", metrics=_SERVER_METRICS):
     d = lambda metric: _delta(b, a, metric, models)
+    num = lambda v: isinstance(v, float)
+    if engine != "vLLM":
+        # Only vLLM's per-request timing histograms have been checked against
+        # its source and a live run. For other servers the per-request speed is
+        # left unknown; the whole-server figure needs only the output count.
+        gen = d(metrics[2][1])
+        whole = gen / window if num(gen) and window and window > 0 else None
+        w("-" * 68)
+        w(f"  SERVER SPEED  (from {engine}'s own counters)")
+        w("-" * 68)
+        w(f"  per request   unknown - not read for {engine} yet (only vLLM's are checked)")
+        w("  whole server, over the window:")
+        w("    output      " + (f"{whole:,.1f} tokens/s  ({int(gen):,} output tokens in"
+                                f" {window:,.1f} s, {src}, idle included)" if whole is not None
+                                else "unknown - no window or no output count"))
+        w()
+        return {"prefill": None, "decode": None, "whole_output": whole}
     reqs = d("vllm:request_success_total")
     new_prompt = d("vllm:request_prefill_kv_computed_tokens_sum")
     pre_s = d("vllm:request_prefill_time_seconds_sum")
     gen = d("vllm:request_generation_tokens_sum")
     dec_s = d("vllm:request_decode_time_seconds_sum")
-    num = lambda v: isinstance(v, float)
 
     prefill = new_prompt / pre_s if num(new_prompt) and num(pre_s) and pre_s > 0 else None
     decode = None
@@ -1988,6 +2043,42 @@ def _selftest(out=sys.stdout):
         rj = idle_series([snapfile(3000, 0, 0), snapfile(3300, 0, 0, drop=True)], out=buf)
         check("idle series: a missing counter is unknown, not idle",
               rj and close(rj["idle_s"], 0.0) and close(rj["unknown_s"], 300.0))
+
+        # The SGLang lines below are copied from the live run (Colab T4,
+        # SGLang 0.5.21, 4 Oct 2026): B before the 8 chats, C after them,
+        # D after 2 streams. Real output, not written to fit this code.
+        lab = lambda st: (f'{{engine_type="unified",is_streaming="{st}",'
+                          f'model_name="Qwen/Qwen2.5-0.5B-Instruct"}}')
+        def sg(t, rows):
+            fp = os.path.join(sd, f"{t}.txt")
+            with open(fp, "w") as f:
+                for st, (pt, gt, rq) in rows.items():
+                    f.write(f"sglang:prompt_tokens_total{lab(st)} {pt}\n"
+                            f"sglang:generation_tokens_total{lab(st)} {gt}\n"
+                            f"sglang:num_requests_total{lab(st)} {rq}\n")
+            return fp
+        sB = sg(5000, {"false": ("6.0", "8.0", "1.0")})
+        sC = sg(5030, {"false": ("270.0", "88.0", "9.0")})
+        sD = sg(5060, {"false": ("270.0", "88.0", "9.0"), "true": ("66.0", "64.0", "2.0")})
+        buf = io.StringIO()
+        rs = reconcile(sB, sD, path=fresh(), prices=prices, gpu_rate=3.6, window=100, out=buf)
+        check("sglang: its own counters are read, streamed and not streamed summed",
+              rs and rs["engine"] == "SGLang"
+              and rs["server"] == {"requests": 10.0, "prompt tokens": 330.0, "output tokens": 144.0}
+              and close(rs["gpu"]["per_request"], 0.01) and "(SGLang)" in buf.getvalue()
+              and "not read for SGLang yet" in buf.getvalue() and rs["speed"]["decode"] is None)
+        buf = io.StringIO()
+        rk = idle_series([sg(4970, {"false": ("6.0", "8.0", "1.0")}), sB, sC, sD],
+                         gpu_rate=3.6, out=buf)
+        check("sglang: idle series marks its windows too",
+              rk and close(rk["idle_s"], 30.0) and close(rk["served_s"], 60.0)
+              and "served 8 requests, 80 output tokens" in buf.getvalue())
+        buf = io.StringIO()
+        both = os.path.join(sd, "both.txt")
+        open(both, "w").write(open(sC).read() + open(snapfile(9000, 3, 30)).read())
+        rb = reconcile(both, both, path=fresh(), prices=prices, out=buf)
+        check("snapshots holding both vLLM and SGLang counters are refused, not mixed",
+              rb is None and "one server" in buf.getvalue())
 
         def hist(kv, pre, dec):
             lab = f'{{engine="0",model_name="{m}"}}'
