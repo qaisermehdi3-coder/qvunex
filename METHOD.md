@@ -1,6 +1,6 @@
 # How to price one GPU wake: billed against served
 
-Version 0.3, 4 October 2026 (0.2 added rule 8; 0.3 adds SGLang). A short
+Version 0.4, 5 October 2026 (0.2 added rule 8, 0.3 SGLang, 0.4 rule 9). A short
 method for working out what a self-hosted or scale-to-zero inference server
 cost, from the bill and from the server's own counters. Anyone can use it; you
 do not need qvunex to follow it. `qvunex_single.py --reconcile` and `--idle`
@@ -67,6 +67,11 @@ bill, and in money.
    up the three: the "nothing served" total is the part of the bill that
    bought no work. Name each snapshot by its Unix time so the window lengths
    survive copying (a file's own time can change when it is copied).
+9. **Ready is not warm. Also record when the first request finished.** A
+   server can pass its health check and still take minutes over its first
+   real request. Report the time from billing start to the first finished
+   request next to the boot / serving / tail split, because a split taken at
+   the health check can put most of the real wait inside "serving".
 
 ## 4. Evidence (vLLM 0.27.1 unless marked SGLang)
 
@@ -92,6 +97,12 @@ bill, and in money.
   counted; a 1 / 6 / 8 warmup request already counted at startup. With a
   wrapped client, meter and server matched on requests (6 and 6) and the token
   gap was exactly the two streams. Idle, busy, idle windows marked that way.
+- SGLang 0.5.21 cold start, Colab T4, 5 October 2026: billed 639.6 s; to
+  `/health` 200 386.7 s (60.5%, of which prefill CUDA graph capture 287.7 s);
+  then the first chat request took about 176 s, the second about 16 s, the
+  other six under a second; warm requests afterwards 0.08-0.22 s. First answer
+  about 563 s into the bill (88%). Meter and server equal, 8 / 264 / 80. The
+  log shows each tail `/health` as a one-token GPU prefill, uncounted.
 
 ## 5. What this method does not cover
 

@@ -217,6 +217,27 @@ already counted when the server first answers (1 request, 6 prompt, 8 output
 on that run): take the first snapshot after the server answers, and that
 request falls before your window.
 
+**One SGLang cold start, and why "ready" is not the end of boot.** Same T4,
+SGLang 0.5.21, 5 October 2026, clock started before the server launched:
+
+```text
+boot (to /health 200)   386.7 s   60.5%   of which capturing prefill CUDA graphs 287.7 s
+serving window          192.8 s   30.1%   8 requests, meter and server equal 8 / 264 / 80
+tail (health checks)     60.1 s    9.4%
+billed                  639.6 s
+```
+
+The serving window is not what it looks like. SGLang logged "ready to roll"
+and `/health` said 200, then the first chat request took about 176 s, the
+second about 16 s, and the other six finished within a second. Eight more
+requests on the same server afterwards took 0.08 to 0.22 s each. So about 563
+of the 640 billed seconds, 88%, went by before the first user got an answer,
+though a split taken at `/health` would call only 60% of it boot. The log does
+not say what those 176 s were spent on, so the cause is not claimed here. On
+vLLM 0.27.1 on the same card, the 8 requests after ready took 5.8 s together.
+The same log also shows each `/health` call in the tail as a one-token
+prefill on the GPU, while the request counters stayed still.
+
 Other servers are not covered yet.
 
 ---
