@@ -1,0 +1,30 @@
+====================================================================
+  QVUNEX RECONCILE  meter vs server
+====================================================================
+  events        /content/evidence/events.jsonl  (3 calls)
+  server        Qwen/Qwen2.5-0.5B-Instruct  (vLLM)
+
+                           server          meter            gap
+  requests                      3              3             +0
+  prompt tokens               105             70            +35
+  output tokens                48             32            +16
+
+  1 of 3 successful call(s) came back with no usage.
+
+  Requests match. The token gap is what the server counted for the
+  1 call(s) the client never got a count for. The total is now
+  known; which of those calls used how much is still not.
+
+--------------------------------------------------------------------
+  SERVER SPEED  (from vLLM's own counters)
+--------------------------------------------------------------------
+  per request, each request's own time:
+    prefill     63 tokens/s  (41 new prompt tokens in 0.649 s; cached tokens left out)
+    decode      154.3 tokens/s  (45 tokens after each request's first, in 0.292 s)
+  whole server, over the window:
+    output      12.3 tokens/s  (48 output tokens in 3.9 s, from the snapshot files' times, idle included)
+
+  With requests running at once, per-request speed falls and the whole
+  server's rises. Price by the whole-server figure; it holds only at the
+  load you ran.
+
