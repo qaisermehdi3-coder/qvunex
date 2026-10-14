@@ -193,6 +193,18 @@ One at a time, per-request decode was 648-649 tokens/s and the whole server
 589-593. At 8 requests at once, per-request decode was 549-573 tokens/s and
 the whole server 3,194-3,348. That is 5.7-5.8x, the same ratio as on the T4.
 
+**The cache split the client is not told.** Live on a Colab T4, vLLM 0.27.1,
+14 October 2026: three identical calls (one plain, one stream without
+`stream_options`, one with it). The server counted 3 requests, 105 prompt and
+48 output tokens, and 64 of the 105 prompt tokens read from its prefix cache
+(on by default). The client got 35 / 16 on two calls and nothing on the
+stream, and on neither of the two was it told how much was cached: vLLM sends
+`prompt_tokens_details` only when started with `--enable-prompt-tokens-details`.
+Such calls are now marked as cache split unknown rather than recorded as a
+cache of 0, and `--reconcile` prints the server's cached count on its own
+line. Raw files of that run, unedited, with what each surface saw:
+[benchmarks/data/selfhosted-t4-2026-10-14](benchmarks/data/selfhosted-t4-2026-10-14/CONDITIONS.md).
+
 **SGLang too.** Start SGLang with `--enable-metrics` and the same commands
 work on its `/metrics` (port 30000 by default); the report names which server
 the counters came from. It reads SGLang's `sglang:num_requests_total`,

@@ -274,7 +274,18 @@ def extract_usage(response):
         # reasoning_tokens is a SUBSET of completion_tokens. Adding it again
         # inflates the bill.
         out["reasoning_billed"] = INCLUDED
-        pd = _get(u, "prompt_tokens_details") or {}
+        pd = _get(u, "prompt_tokens_details")
+        if pd is None:
+            # OpenAI itself always sends prompt_tokens_details. A self-hosted
+            # server may not: vLLM 0.27.1 sends it only when started with
+            # --enable-prompt-tokens-details (off by default). Live on a Colab
+            # T4, 14 Oct 2026: three identical calls, the server counted 64 of
+            # 105 prompt tokens as read from its prefix cache, and the client
+            # was told nothing about it. Absent is not zero, so the call is
+            # marked. Here prompt_tokens INCLUDES any cached tokens, so the
+            # token count is right; only the cached / uncached split is unknown.
+            out["cache_unreported"] = "split"
+            pd = {}
         out["cache_read"] = _get(pd, "cached_tokens") or 0
         out["cache_write"] = 0
         # prompt_tokens is INCLUSIVE of cached tokens on OpenAI, so subtract
@@ -932,15 +943,25 @@ def report(path=None, prices=None, out=sys.stdout):
 
     no_cache = [c for c in calls if c.get("status") == "ok" and c.get("cache_unreported")]
     if no_cache:
+        anth = [c for c in no_cache if c.get("cache_unreported") is True]
+        split = [c for c in no_cache if c.get("cache_unreported") == "split"]
         w()
         w("-" * 68)
         w(f"  CACHE NOT REPORTED  {len(no_cache)} call(s)")
         w("-" * 68)
-        w("  These came back in Anthropic's shape with no cache fields at all.")
-        w("  A gateway or proxy in between can drop them. If these calls used")
-        w("  prompt caching, their input is undercounted, because on Anthropic")
-        w("  input_tokens leaves the cache out, and their cost above is only a")
-        w("  lower bound. Check one call against the provider's own usage page.")
+        if anth:
+            w(f"  {len(anth)} came back in Anthropic's shape with no cache fields at all.")
+            w("  A gateway or proxy in between can drop them. If these calls used")
+            w("  prompt caching, their input is undercounted, because on Anthropic")
+            w("  input_tokens leaves the cache out, and their cost above is only a")
+            w("  lower bound. Check one call against the provider's own usage page.")
+        if split:
+            w(f"  {len(split)} came back in OpenAI's shape with no prompt_tokens_details.")
+            w("  Their prompt token count includes any cached tokens, but how many")
+            w("  were cached is unknown, so all of them are priced as fresh input:")
+            w("  where cached input is cheaper, their cost above may be too high.")
+            w("  A self-hosted vLLM server sends the split only when started with")
+            w("  --enable-prompt-tokens-details; --reconcile shows its own count.")
 
     if unaccounted:
         w()
@@ -1127,8 +1148,25 @@ def reconcile(before, after, path=None, model=None, prices=None,
         g = int(round(s)) - meter[label]
         gaps[label] = g
         w("  %-16s %14s %14s %14s" % (label, f"{int(round(s)):,}", f"{meter[label]:,}", f"{g:+,}"))
+    # How much of the prompt the server read from its prefix cache. vLLM keeps
+    # this as vllm:prompt_tokens_cached; the client only hears it when the
+    # server sends prompt_tokens_details (vLLM: --enable-prompt-tokens-details).
+    cached = None
+    if engine == "vLLM":
+        cs = _delta(b, a, "vllm:prompt_tokens_cached_total", models)
+        unrep = [c for c in known if c.get("cache_unreported")]
+        cm = None if (unrep or missing) else sum(c.get("cache_read") or 0 for c in known)
+        cached = {"server": cs, "meter": cm, "unreported": len(unrep)}
+        if cs is not None:
+            sv = "counter reset" if cs == "reset" else f"{int(round(cs)):,}"
+            mv = "not reported" if unrep else ("unknown" if cm is None else f"{cm:,}")
+            gv = (f"{int(round(cs)) - cm:+,}" if cm is not None and cs != "reset" else "unknown")
+            w("  %-16s %14s %14s %14s" % ("  of which cached", sv, mv, gv))
     w()
     w(f"  {len(missing)} of {len(ok)} successful call(s) came back with no usage.")
+    if cached and cached["unreported"] and cached["server"] not in (None, "reset"):
+        w(f"  {cached['unreported']} call(s) had usage but no cache split (prompt_tokens_details).")
+        w("  The server's own count above is the only place the cached part shows.")
 
     if any(server[l] in (None, "reset") for l, _ in metrics):
         w()
@@ -1219,7 +1257,7 @@ def reconcile(before, after, path=None, model=None, prices=None,
             gpu = {"window": window, "cost": cost, "per_request": per_req, "per_m_output": per_m,
                    "served_nothing": idle, "split": split}
         w()
-    return {"server": server, "meter": meter, "gaps": gaps, "missing": len(missing),
+    return {"server": server, "meter": meter, "gaps": gaps, "missing": len(missing), "cached": cached,
             "gpu": gpu, "speed": speed, "engine": engine}
 
 
@@ -1565,6 +1603,24 @@ def _selftest(out=sys.stdout):
         check("anthropic: cache fields missing is flagged, never read as a cache of 0",
               not direct.get("cache_unreported") and gw.get("cache_unreported") is True
               and "CACHE NOT REPORTED  1 call(s)" in buf.getvalue())
+
+        # The exact usage object vLLM 0.27.1 returned live on a Colab T4,
+        # 14 Oct 2026, when the server had in fact read 32 of the 35 prompt
+        # tokens from its prefix cache.
+        p = fresh()
+        live = {"completion_tokens": 16, "prompt_tokens": 35, "total_tokens": 51,
+                "completion_tokens_details": None, "prompt_tokens_details": None}
+        wrap(fake(live)).messages.create(model="oai")
+        wrap(fake({"prompt_tokens": 35, "completion_tokens": 16, "total_tokens": 51,
+                   "prompt_tokens_details": {"cached_tokens": 0}})).messages.create(model="oai")
+        noted, told = calls_in(p)
+        buf = io.StringIO()
+        report(path=p, prices=prices, out=buf)
+        check("openai shape: no prompt_tokens_details is a cache split unknown, not a cache of 0",
+              noted.get("cache_unreported") == "split" and not told.get("cache_unreported")
+              and noted.get("tokens_in") == 35 and noted.get("tokens_out") == 16
+              and "CACHE NOT REPORTED  1 call(s)" in buf.getvalue()
+              and "no prompt_tokens_details" in buf.getvalue())
 
         p = fresh()
         wrap(fake({"prompt_tokens": 1000, "completion_tokens": 200, "total_tokens": 1200,
@@ -1977,6 +2033,13 @@ def _selftest(out=sys.stdout):
         check("reconcile: the server's count fills the gap the missing call left, as a total",
               r and r["gaps"] == {"requests": 0, "prompt tokens": 150, "output tokens": 60}
               and r["missing"] == 1)
+        cached_line = lambda n: (f'vllm:prompt_tokens_cached_total{{engine="0",model_name="{m}"}} {n}\n')
+        buf = io.StringIO()
+        rc = reconcile(snap(5, 1000, 300, cached_line(200)), snap(7, 1250, 400, cached_line(264)),
+                       path=p, prices=prices, out=buf)
+        check("reconcile: the server's cached prompt count is shown; the client's unknown split is not 0",
+              rc and rc["cached"]["server"] == 64 and rc["cached"]["meter"] is None
+              and "of which cached" in buf.getvalue())
         buf = io.StringIO()
         r1 = reconcile(snap(5, 1000, 300), snap(7, 900, None), path=p, prices=prices, out=buf)
         check("reconcile: a restarted server or a missing counter is unknown, not zero",
