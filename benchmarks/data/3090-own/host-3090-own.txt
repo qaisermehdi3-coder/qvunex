@@ -1,0 +1,12 @@
+date_utc 2026-10-16T17:42:54Z
+name, memory.total [MiB], driver_version, power.limit [W], clocks.max.memory [MHz]
+NVIDIA GeForce RTX 3090, 24576 MiB, 580.159.03, 360.00 W, 9751 MHz
+--- cpu ---
+CPU(s):                                  48
+Model name:                              AMD Ryzen Threadripper 7960X 24-Cores
+nproc 48
+--- mem ---
+               total        used        free      shared  buff/cache   available
+Mem:              62           8          17           0          36          52
+--- disk ---
+overlay          60G  9.2M   60G   1% /
