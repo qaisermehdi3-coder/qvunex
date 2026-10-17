@@ -1322,7 +1322,14 @@ def idle_series(paths, gpu_rate=None, out=sys.stdout):
         except ValueError:
             return _os.path.getmtime(path), "file time"
 
-    snaps = sorted((stamp(p) + (p,) for p in paths), key=lambda t: t[0])
+    missing = [p for p in paths if not _os.path.isfile(p)]
+    for p in missing:
+        w(f"  No such file: {p}")
+    if missing:
+        w("  If that is a pattern like snaps/*.txt, no snapshot was saved yet:")
+        w("  check that the loop is running and that `ls snaps` shows files.")
+    snaps = sorted((stamp(p) + (p,) for p in paths if p not in missing),
+                   key=lambda t: t[0])
     if len(snaps) < 2:
         w("  Need at least two snapshots.")
         return None
@@ -2106,6 +2113,11 @@ def _selftest(out=sys.stdout):
         rj = idle_series([snapfile(3000, 0, 0), snapfile(3300, 0, 0, drop=True)], out=buf)
         check("idle series: a missing counter is unknown, not idle",
               rj and close(rj["idle_s"], 0.0) and close(rj["unknown_s"], 300.0))
+        buf = io.StringIO()
+        rn = idle_series([os.path.join(sd, "nothing-here", "*.txt")], out=buf)
+        check("idle series: no snapshot files gives a plain message, not a crash",
+              rn is None and "No such file" in buf.getvalue()
+              and "Need at least two snapshots" in buf.getvalue())
 
         # The SGLang lines below are copied from the live run (Colab T4,
         # SGLang 0.5.21, 4 Oct 2026): B before the 8 chats, C after them,
