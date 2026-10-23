@@ -1,0 +1,81 @@
+[18:37:22] == host ==
+  NVIDIA GeForce RTX 3090, 24576 MiB, 580.173.02
+  vllm 0.27.1
+  nproc 64
+  gpu total: 20 MiB, 24576 MiB
+[18:37:34] == fetching models ==
+[18:37:53] == A: embedding server alone at 0.10 ==
+[18:37:53] start emb: vllm serve BAAI/bge-small-en-v1.5 --gpu-memory-utilization 0.10 --max-model-len 512
+[18:38:59] emb READY after 66 s
+  gpu total: 582 MiB, 24576 MiB
+  process: 2056941, 556 MiB
+  embed 8 at once, 30.1 s: 1630 requests ok, 0 errors, 52160 texts embedded = 1733.4 per s
+[18:39:30] == B: chat server started second at 0.70, same GPU ==
+[18:39:30] start chat: vllm serve Qwen/Qwen2.5-1.5B-Instruct --gpu-memory-utilization 0.70 --max-model-len 2048
+[18:40:52] chat READY after 82 s
+  log: (EngineCore pid=1761) INFO 10-23 18:40:39 [kv_cache_utils.py:2235] GPU KV cache size: 469,264 tokens
+  log: (EngineCore pid=1761) INFO 10-23 18:40:39 [kv_cache_utils.py:2236] Maximum concurrency for 2,048 tokens per request: 229.13x
+  log: (EngineCore pid=1761) INFO 10-23 18:40:43 [gpu_worker.py:789] Free memory on device (22.96/23.8 GiB) on startup. Desired GPU memory utilization is (0.7, 16.66 GiB). Actual usage is 3.69 GiB for consumed memory (weights + non-torch), 0.44 GiB for peak activation, and 0.48 GiB for CUDAGraph memory. Replace gpu_memory_utilization config with `--kv-cache-memory=12781620941` (11.9 GiB) to fit into requested memory, or `--kv-cache-memory=19543998976` (18.2 GiB) to fully utilize gpu memory. Current kv cache memory in use is 12.53 GiB.
+  gpu total: 18317 MiB, 24576 MiB
+  process: 2056941, 578 MiB
+  process: 2066873, 17710 MiB
+[18:40:52] == C: throughput, each alone then both at once ==
+  embed 8 at once, 30.1 s: 1657 requests ok, 0 errors, 53024 texts embedded = 1760.6 per s
+  chat  16 at once, 30.7 s: 625 requests ok, 0 errors, 80000 output tokens = 2606.7 per s
+[18:41:53]   both busy at the same time:
+  embed 8 at once, 30.1 s: 1513 requests ok, 0 errors, 48416 texts embedded = 1609.1 per s
+  chat  16 at once, 30.7 s: 552 requests ok, 0 errors, 70656 output tokens = 2298.3 per s
+[18:42:34] all servers stopped
+  gpu total: 20 MiB, 24576 MiB
+[18:42:34] == D: chat first at 0.90, then embedding at 0.10 ==
+[18:42:34] start chat: vllm serve Qwen/Qwen2.5-1.5B-Instruct --gpu-memory-utilization 0.90 --max-model-len 2048
+[18:43:21] chat READY after 47 s
+  log: (EngineCore pid=2552) INFO 10-23 18:43:11 [kv_cache_utils.py:2235] GPU KV cache size: 675,008 tokens
+  log: (EngineCore pid=2552) INFO 10-23 18:43:11 [kv_cache_utils.py:2236] Maximum concurrency for 2,048 tokens per request: 329.59x
+  log: (EngineCore pid=2552) INFO 10-23 18:43:16 [gpu_worker.py:789] Free memory on device (23.52/23.8 GiB) on startup. Desired GPU memory utilization is (0.9, 21.42 GiB). Actual usage is 3.27 GiB for consumed memory (weights + non-torch), 0.12 GiB for peak activation, and 0.48 GiB for CUDAGraph memory. Replace gpu_memory_utilization config with `--kv-cache-memory=18680907674` (17.4 GiB) to fit into requested memory, or `--kv-cache-memory=20941565440` (19.5 GiB) to fully utilize gpu memory. Current kv cache memory in use is 18.02 GiB.
+  gpu total: 23136 MiB, 24576 MiB
+  process: 2083369, 23110 MiB
+[18:43:21] start emb: vllm serve BAAI/bge-small-en-v1.5 --gpu-memory-utilization 0.10 --max-model-len 512
+[18:43:55] emb FAILED TO START after 34 s. Last log lines:
+  log: (APIServer pid=3008)   File "/usr/local/lib/python3.12/dist-packages/vllm/v1/engine/core_client.py", line 987, in __init__
+  log: (APIServer pid=3008)     super().__init__(
+  log: (APIServer pid=3008)   File "/usr/local/lib/python3.12/dist-packages/vllm/v1/engine/core_client.py", line 609, in __init__
+  log: (APIServer pid=3008)     with launch_core_engines(
+  log: (APIServer pid=3008)          ^^^^^^^^^^^^^^^^^^^^
+  log: (APIServer pid=3008)   File "/usr/lib/python3.12/contextlib.py", line 144, in __exit__
+  log: (APIServer pid=3008)     next(self.gen)
+  log: (APIServer pid=3008)   File "/usr/local/lib/python3.12/dist-packages/vllm/v1/engine/utils.py", line 1194, in launch_core_engines
+  log: (APIServer pid=3008)     wait_for_engine_startup(
+  log: (APIServer pid=3008)   File "/usr/local/lib/python3.12/dist-packages/vllm/v1/engine/utils.py", line 1253, in wait_for_engine_startup
+  log: (APIServer pid=3008)     raise RuntimeError(
+  log: (APIServer pid=3008) RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {}
+[18:44:05] all servers stopped
+  gpu total: 20 MiB, 24576 MiB
+[18:44:05] == E: both started at the same moment (chat 0.70, embedding 0.10) ==
+[18:44:05] start chat: vllm serve Qwen/Qwen2.5-1.5B-Instruct --gpu-memory-utilization 0.70 --max-model-len 2048
+[18:44:05] start emb: vllm serve BAAI/bge-small-en-v1.5 --gpu-memory-utilization 0.10 --max-model-len 512
+[18:44:43] emb READY after 38 s
+[18:44:54] chat READY after 49 s
+  log: (EngineCore pid=3934) INFO 10-23 18:44:43 [kv_cache_utils.py:2235] GPU KV cache size: 491,200 tokens
+  log: (EngineCore pid=3934) INFO 10-23 18:44:43 [kv_cache_utils.py:2236] Maximum concurrency for 2,048 tokens per request: 239.84x
+  log: (EngineCore pid=3934) INFO 10-23 18:44:48 [gpu_worker.py:789] Free memory on device (23.13/23.8 GiB) on startup. Desired GPU memory utilization is (0.7, 16.66 GiB). Actual usage is 3.42 GiB for consumed memory (weights + non-torch), 0.12 GiB for peak activation, and 0.48 GiB for CUDAGraph memory. Replace gpu_memory_utilization config with `--kv-cache-memory=13410646733` (12.49 GiB) to fit into requested memory, or `--kv-cache-memory=20359671296` (18.96 GiB) to fully utilize gpu memory. Current kv cache memory in use is 13.12 GiB.
+  gpu total: 18651 MiB, 24576 MiB
+  process: 2092501, 552 MiB
+  process: 2092762, 18070 MiB
+[18:45:04] all servers stopped
+  gpu total: 20 MiB, 24576 MiB
+[18:45:04] == F: smallest embedding footprint ==
+[18:45:04] start emb: vllm serve BAAI/bge-small-en-v1.5 --gpu-memory-utilization 0.05 --max-model-len 512 --max-num-seqs 32
+[18:45:44] emb READY after 40 s
+  gpu total: 484 MiB, 24576 MiB
+  process: 2099465, 458 MiB
+  embed 8 at once, 20.1 s: 1026 requests ok, 0 errors, 32832 texts embedded = 1634.5 per s
+[18:46:14] all servers stopped
+  gpu total: 20 MiB, 24576 MiB
+[18:46:14] start emb: vllm serve BAAI/bge-small-en-v1.5 --gpu-memory-utilization 0.03 --max-model-len 512 --max-num-seqs 32
+[18:46:51] emb READY after 37 s
+  gpu total: 480 MiB, 24576 MiB
+  process: 2107455, 454 MiB
+  embed 8 at once, 20.1 s: 1106 requests ok, 0 errors, 35392 texts embedded = 1762.7 per s
+[18:47:21] all servers stopped
+  gpu total: 20 MiB, 24576 MiB

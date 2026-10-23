@@ -1,0 +1,20 @@
+Test D re-run, same instance (C.57409287), second terminal, 23 Oct 2026 ~18:55-19:08 UTC.
+The first run's embedding log was overwritten by a later start, so D was repeated by hand
+to capture vLLM's own error line. Transcribed from a terminal screenshot.
+
+$ cd /workspace/coloc; nohup vllm serve Qwen/Qwen2.5-1.5B-Instruct --port 8102 --gpu-memory-utilization 0.9 --max-model-len 2048 > dc.log 2>&1 &
+[1] 6057
+(waited about 2 minutes)
+
+$ vllm serve BAAI/bge-small-en-v1.5 --port 8101 --gpu-memory-utilization 0.1 > d10.log 2>&1; grep -i -m1 "free memory" d10.log
+(EngineCore pid=6776) ERROR 10-23 18:57:49 [core.py:1349] ValueError: Free memory on device cuda:0 (0.95/23.8 GiB) on startup is less than desired GPU memory utilization (0.1, 2.38 GiB). Decrease GPU memory utilization or reduce GPU memory used by other processes.
+
+$ nohup vllm serve BAAI/bge-small-en-v1.5 --port 8101 --gpu-memory-utilization 0.03 --max-model-len 512 > d03.log 2>&1 &
+[2] 7113
+(waited about 1 minute)
+
+$ curl -s localhost:8101/health -o /dev/null -w "%{http_code}\n"; nvidia-smi --query-compute-apps=pid,used_memory --format=csv
+200
+pid, used_gpu_memory [MiB]
+2156814, 23110 MiB
+2199879, 552 MiB
