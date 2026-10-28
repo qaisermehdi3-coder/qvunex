@@ -1,0 +1,44 @@
+QVUNEX - YOUR CONFIG ON A RENTED GPU
+date_utc   2026-10-27T18:40:02Z
+gpu        NVIDIA GeForce RTX 3090, 24576 MiB, 580.159.03
+vllm       0.27.1
+cpu        AMD EPYC 7K62 48-Core Processor, nproc 192
+model      Qwen/Qwen2.5-7B-Instruct
+flags      none
+load       prompt ~512 tokens, answer 256 tokens (ignore_eos), levels: 1 4 16 64, 60s each
+price      $0.259 per hour for this GPU
+
+meter      qvunex_single.py md5 5b49a0fa
+download   853 s (not counted in start-up)
+start-up   122.9 s from launch to /health (model already on disk)
+           Available KV cache memory: 5.09 GiB
+           GPU KV cache size: 95,376 tokens
+           Maximum concurrency for 32,768 tokens per request: 2.91x
+
+PER LOAD LEVEL (server busy the whole window; cost = GPU price x window)
+
+    1 at once: 10 done, 0 errors, 40 output tok/s, latency p50 6.27 s / p95 7.10 s, $0.000463 per request, $1.809 per 1M output tokens
+        meter vs server   requests                     10             10             +0
+        meter vs server   prompt tokens             5,438          5,438             +0
+        meter vs server   output tokens             2,560          2,560             +0
+    4 at once: 36 done, 0 errors, 147 output tok/s, latency p50 6.82 s / p95 7.19 s, $0.000125 per request, $0.490 per 1M output tokens
+        meter vs server   requests                     36             36             +0
+        meter vs server   prompt tokens            19,584         19,584             +0
+        meter vs server   output tokens             9,216          9,216             +0
+   16 at once: 112 done, 0 errors, 442 output tok/s, latency p50 9.06 s / p95 9.54 s, $0.000042 per request, $0.163 per 1M output tokens
+        meter vs server   requests                    112            112             +0
+        meter vs server   prompt tokens            60,899         60,899             +0
+        meter vs server   output tokens            28,672         28,672             +0
+   64 at once: 246 done, 0 errors, 878 output tok/s, latency p50 17.87 s / p95 23.67 s, $0.000021 per request, $0.082 per 1M output tokens
+        meter vs server   requests                    246            246             +0
+        meter vs server   prompt tokens           133,816        133,816             +0
+        meter vs server   output tokens            62,976         62,976             +0
+
+IF IT SCALES TO ZERO: each wake pays the start-up time before the first answer
+  123 s x $0.259/h = $0.0088 per wake, before any request
+
+WHAT THIS DOES NOT TELL YOU
+  The costs above assume the GPU is busy the whole time. A real server is
+  not: if it serves requests 30% of the day, each request really costs about
+  3.3x these numbers. Only your own traffic can show that share.
+
