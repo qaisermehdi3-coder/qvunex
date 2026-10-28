@@ -30,4 +30,4 @@ The same card costs 22 times less per output token at 64 at once than at 1, and 
 ## Files
 
 - `report-planb.txt`: the report as printed
-- `planb-files.tgz`: server log, /metrics before and after each level, meter events, reconcile output
+- `planb-files.tgz.gz`: server log, /metrics before and after each level, meter events, reconcile output (a tar.gz archive; open with `tar xzf`)
