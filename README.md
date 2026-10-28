@@ -48,6 +48,8 @@ The method behind this section is written up on one page, so you can follow it
 with or without this tool: [METHOD.md](METHOD.md), how to price one GPU wake,
 billed time against served work.
 
+**Don't want to run anything on your own servers?** Send the model, your vLLM flags, typical prompt and answer length, and your GPU price. I rent the same GPU, run [planb.sh](planb.sh), and send you the report: cost per request and per 1M output tokens at several loads, start-up time, and the meter checked against vLLM's own counters. [Sample report, RTX 3090](benchmarks/data/planb-3090-2026-10-27). It can't show how much of your real day sits idle; that needs your own traffic. Paid work: qvunexaudit@gmail.com
+
 The server already counts every request it finishes. Save its counters before
 and after your traffic, then compare:
 
