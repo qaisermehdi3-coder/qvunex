@@ -22,6 +22,8 @@
 #
 # The tests run in the background; this command then follows the report.
 # When it prints ALL DONE, download report-planb.txt and DESTROY the instance.
+# It also writes corpus-rows.csv: the same numbers as rows for
+# benchmarks/corpus/served-runs.csv (host and source are left for you to fill).
 
 set -u
 OUT=/workspace/planb
@@ -170,6 +172,41 @@ say "  not: if it serves requests 30% of the day, each request really costs abou
 say "  3.3x these numbers. Only your own traffic can show that share."
 say ""
 kill $SPID 2>/dev/null; sleep 5; pkill -f "bin/vllm serve" 2>/dev/null
+# CORPUS ROWS: the same numbers in the benchmarks/corpus/served-runs.csv format
+python3 - "$OUT" "$OUT/corpus-rows.csv" <<'PY' >> "$OUT/run.out" 2>&1
+import csv, re, sys
+out_dir, dest = sys.argv[1], sys.argv[2]
+rep = open(f"{out_dir}/report.txt").read()
+def one(pat):
+    m = re.search(pat, rep, re.M)
+    return m.group(1).strip() if m else ""
+gpu_line = [x.strip() for x in one(r"^gpu\s+(.*)$").split(",")]
+gpu, mem, drv = (gpu_line + ["", "", ""])[:3]
+flags = one(r"^flags\s+(.*)$")
+lm = re.search(r"prompt ~(\d+) tokens, answer (\d+) tokens", rep)
+cols = ["run_date","gpu","gpu_mem_mib","driver","host","usd_per_hour","engine","engine_version","model","extra_flags",
+        "prompt_tokens_approx","output_tokens","ignore_eos","concurrency","window_s","requests_done","errors",
+        "output_tok_per_s","latency_p50_s","latency_p95_s","usd_per_request","usd_per_1m_output_tokens",
+        "meter_matches_server","startup_s","source"]
+rows = []
+for m in re.finditer(r"^\s+(\d+) at once: (\d+) done, (\d+) errors, ([\d,]+) output tok/s, latency p50 ([\d.]+) s / p95 ([\d.]+) s, \$([\d.]+) per request, \$([\d.]+) per 1M", rep, re.M):
+    c = m.group(1)
+    try:
+        rc = open(f"{out_dir}/reconcile_{c}.txt").read()
+    except OSError:
+        rc = ""
+    w = re.search(r"window\s+([\d.]+) s", rc)
+    rows.append([one(r"^date_utc\s+(\d{4}-\d\d-\d\d)"), gpu, mem.replace(" MiB", ""), drv, "",
+                 one(r"^price\s+\$([\d.]+)"), "vllm", one(r"^vllm\s+(\S+)"), one(r"^model\s+(\S+)"),
+                 "" if flags == "none" else flags, lm.group(1) if lm else "", lm.group(2) if lm else "", "true",
+                 c, w.group(1) if w else "", m.group(2), m.group(3), m.group(4).replace(",", ""), m.group(5), m.group(6),
+                 m.group(7), m.group(8), "yes" if "Meter and server agree exactly." in rc else "no",
+                 one(r"^start-up\s+([\d.]+) s"), ""])
+with open(dest, "w", newline="") as f:
+    wr = csv.writer(f, lineterminator="\n"); wr.writerow(cols); wr.writerows(rows)
+print(f"{len(rows)} corpus rows -> {dest}")
+PY
 cp "$REP" /vllm-workspace/report-planb.txt 2>/dev/null
+cp "$OUT/corpus-rows.csv" /vllm-workspace/corpus-rows.csv 2>/dev/null
 tar czf /vllm-workspace/planb-files.tgz -C "$OUT" . 2>/dev/null
-say "ALL DONE. Download report-planb.txt and planb-files.tgz, then DESTROY the instance."
+say "ALL DONE. Download report-planb.txt, corpus-rows.csv and planb-files.tgz, then DESTROY the instance."
