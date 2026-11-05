@@ -44,3 +44,15 @@ in-flight request finished), `requests_done`, `errors`, `output_tok_per_s`,
 
 New rows come from new `planb.sh` runs, including client mini-reports when the
 client agrees to publish.
+
+Since 4 Nov 2026 `planb.sh` writes them for you as `corpus-rows.csv` (fill in `host` and `source`).
+
+## `offline-batch.csv`: the earlier sweeps, a different method
+
+240 rows from the August to October sweeps (`sweep.py`, `run3090.sh`): Tesla T4, L4 on two hosts, RTX 3090 and L40S, Qwen2.5 1.5B and 7B with their AWQ builds, CUDA graphs on and off, batch 1, 8, 32 and 128, 128 output tokens, short prompts (about 74 tokens). Every row points to its original file in `source`.
+
+**Do not compare these rows with `served-runs.csv`.** These are offline batches: one wave of `batch` requests started together inside vLLM, no HTTP server, no requests arriving over time, no per-request latency. `seconds_total` is the time for the whole wave. Use them to compare cards and settings with each other.
+
+`usd_per_1m_output_tokens` is filled only where the hourly price was recorded (T4 at $0.35, RTX 3090 at $0.414); for L4 and L40S it is empty rather than guessed. Read the caveats in `../data/README.md` first: eager timings moved up to 50% between hosts, CUDA-graph fp16 timings stayed within 1.3%.
+
+Columns: `run_date`, `gpu`, `host`, `usd_per_hour`, `engine`, `engine_version`, `model`, `quantization`, `cuda_graphs`, `batch`, `output_tokens_each`, `repeat`, `seconds_total`, `output_tok_per_s`, `usd_per_1m_output_tokens`, `board_watts` (T4 only), `source`.
