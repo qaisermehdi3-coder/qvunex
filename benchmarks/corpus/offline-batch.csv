@@ -1,0 +1,241 @@
+run_date,gpu,host,usd_per_hour,engine,engine_version,model,quantization,cuda_graphs,batch,output_tokens_each,repeat,seconds_total,output_tok_per_s,usd_per_1m_output_tokens,board_watts,source
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,1,128,0,1.7105,74.83,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,8,128,0,1.7638,580.57,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,32,128,0,2.0984,1951.95,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,128,128,0,2.9886,5482.25,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,1,128,0,2.2666,56.47,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,8,128,0,2.6836,381.58,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,32,128,0,2.5349,1615.85,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,128,128,0,3.1182,5254.25,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,1,128,0,0.7579,168.88,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,8,128,0,0.7831,1307.63,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,32,128,0,1.0491,3904.47,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,128,128,0,2.3047,7109.02,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,1,128,0,2.4749,51.72,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,8,128,0,2.5748,397.7,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,32,128,0,2.7691,1479.16,,,benchmarks/data/l4-verified.csv
+2026-09-01,NVIDIA L4,Modal,,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,128,128,0,4.5324,3614.9,,,benchmarks/data/l4-verified.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,1,128,0,1.7007,75.26,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,8,128,0,1.7731,577.52,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,32,128,0,2.0762,1972.8,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,128,128,0,3.0276,5411.59,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,1,128,0,3.3836,37.83,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,8,128,0,3.7005,276.72,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,32,128,0,3.8154,1073.54,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,128,128,0,4.371,3748.38,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,1,128,0,0.9377,136.51,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,8,128,0,0.8057,1271.01,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,32,128,0,1.303,3143.57,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,128,128,0,2.361,6939.35,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,1,128,0,3.7511,34.12,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,8,128,0,4.0093,255.41,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,32,128,0,4.0688,1006.69,,,benchmarks/data/l4-run2.csv
+2026-09-09,NVIDIA L4,a different rented machine (provider not recorded),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,128,128,0,4.89,3350.53,,,benchmarks/data/l4-run2.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,1,128,0,0.6126,208.95,0.550371,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,8,128,0,0.7345,1394.14,0.082488,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,32,128,0,0.8652,4734.07,0.024292,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,128,128,0,1.5594,10506.71,0.010945,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,1,128,0,1.2455,102.77,1.119004,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,8,128,0,1.3377,765.49,0.150231,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,32,128,0,1.4323,2859.69,0.040214,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,128,128,0,1.9684,8323.57,0.013816,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,1,128,0,0.3368,380.09,0.302560,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,8,128,0,0.3797,2696.86,0.042642,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,32,128,0,0.5764,7106.66,0.016182,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,128,128,0,1.5673,10453.71,0.011001,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,1,128,0,1.4073,90.96,1.264292,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,8,128,0,1.5468,662.0,0.173716,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,32,128,0,1.5929,2571.47,0.044722,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,128,128,0,2.0378,8039.86,0.014304,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,1,128,1,0.6151,208.09,0.552645,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,8,128,1,0.7382,1387.21,0.082900,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,32,128,1,0.8692,4712.58,0.024403,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,128,128,1,1.5657,10464.36,0.010990,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,1,128,1,1.2459,102.73,1.119439,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,8,128,1,1.334,767.62,0.149814,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,32,128,1,1.4464,2831.82,0.040610,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,128,128,1,1.8681,8770.6,0.013112,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,1,128,1,0.3369,379.98,0.302648,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,8,128,1,0.3804,2691.89,0.042721,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,32,128,1,0.5768,7100.67,0.016196,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,128,128,1,1.5722,10421.4,0.011035,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,1,128,1,1.42,90.14,1.275793,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,8,128,1,1.4441,709.1,0.162177,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,32,128,1,1.5754,2599.93,0.044232,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,128,128,1,2.022,8102.92,0.014192,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,1,128,2,0.6155,207.96,0.552991,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,8,128,2,0.7374,1388.68,0.082812,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,32,128,2,0.8681,4718.26,0.024373,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,128,128,2,1.5638,10477.19,0.010976,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,1,128,2,1.2393,103.28,1.113478,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,8,128,2,1.3107,781.27,0.147196,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,32,128,2,1.4432,2838.11,0.040520,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,128,128,2,1.8788,8720.58,0.013187,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,1,128,2,0.3368,380.01,0.302624,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,8,128,2,0.3798,2696.42,0.042649,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,32,128,2,0.5783,7082.99,0.016236,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,128,128,2,1.5679,10449.92,0.011005,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,1,128,2,1.4373,89.05,1.291409,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,8,128,2,1.465,698.98,0.164525,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,32,128,2,1.5802,2592.12,0.044365,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,128,128,2,2.03,8070.89,0.014249,,benchmarks/data/3090-own/3090-own-1p5b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,1,128,0,2.4714,51.79,2.220506,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,8,128,0,2.5966,394.36,0.291612,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,32,128,0,2.9552,1386.04,0.082970,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,128,128,0,5.8561,2797.77,0.041104,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,1,128,0,2.5181,50.83,2.262443,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,8,128,0,2.6465,386.92,0.297219,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,32,128,0,2.9919,1369.02,0.084002,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,128,128,0,5.8777,2787.5,0.041256,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,1,128,0,0.855,149.71,0.768152,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,8,128,0,0.9825,1042.26,0.110337,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,32,128,0,1.7364,2358.86,0.048752,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,128,128,0,5.6991,2874.86,0.040002,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,1,128,0,1.3804,92.73,1.240160,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,8,128,0,1.5144,676.18,0.170073,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,32,128,0,1.917,2136.72,0.053821,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,128,128,0,5.7346,2857.03,0.040252,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,1,128,1,2.4753,51.71,2.223941,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,8,128,1,2.6006,393.76,0.292056,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,32,128,1,2.9547,1386.26,0.082957,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,128,128,1,5.8582,2796.78,0.041119,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,1,128,1,2.5176,50.84,2.261998,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,8,128,1,2.6473,386.8,0.297311,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,32,128,1,2.9936,1368.26,0.084048,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,128,128,1,5.8822,2785.37,0.041287,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,1,128,1,0.8542,149.84,0.767485,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,8,128,1,0.9826,1042.12,0.110352,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,32,128,1,1.7362,2359.2,0.048745,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,128,128,1,5.6974,2875.68,0.039991,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,1,128,1,1.3702,93.42,1.231000,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,8,128,1,1.5426,663.82,0.173240,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,32,128,1,1.9189,2134.56,0.053875,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,128,128,1,5.7319,2858.4,0.040232,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,1,128,2,2.4766,51.68,2.225232,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,8,128,2,2.6002,393.81,0.292019,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,32,128,2,2.9562,1385.54,0.083000,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,128,128,2,5.8551,2798.23,0.041097,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,1,128,2,2.5174,50.85,2.261554,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,8,128,2,2.6465,386.92,0.297219,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,32,128,2,2.994,1368.08,0.084059,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,128,128,2,5.8771,2787.76,0.041252,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,1,128,2,0.854,149.88,0.767280,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,8,128,2,0.9858,1038.71,0.110714,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,32,128,2,1.7378,2357.07,0.048789,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,128,128,2,5.6914,2878.71,0.039948,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,1,128,2,1.3633,93.89,1.224838,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,8,128,2,1.5306,669.03,0.171891,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,32,128,2,1.9228,2130.27,0.053984,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-10-16,NVIDIA GeForce RTX 3090,vast.ai m:75262 h:392144 (Netherlands),0.414,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,128,128,2,5.7476,2850.6,0.040342,,benchmarks/data/3090-own/3090-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,1,128,0,0.6694,191.2,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,8,128,0,0.7332,1396.52,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,32,128,0,0.802,5107.16,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,128,128,0,1.0992,14905.3,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,1,128,0,1.1028,116.07,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,8,128,0,1.1654,878.65,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,32,128,0,2.1582,1897.88,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,128,128,0,1.4732,11121.25,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,1,128,0,0.3395,376.97,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,8,128,0,0.3637,2815.15,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,32,128,0,0.458,8943.26,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,128,128,0,0.7815,20964.86,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,1,128,0,1.3667,93.66,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,8,128,0,1.4326,714.79,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,32,128,0,1.4174,2889.71,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,128,128,0,1.7196,9527.96,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,1,128,1,0.67,191.04,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,8,128,1,0.7329,1397.16,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,32,128,1,0.8005,5116.96,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,128,128,1,1.0856,15091.79,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,1,128,1,1.1086,115.46,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,8,128,1,1.1239,911.14,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,32,128,1,1.2152,3370.51,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,128,128,1,2.5829,6343.21,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,1,128,1,0.3422,374.05,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,8,128,1,0.363,2820.95,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,32,128,1,0.4656,8797.89,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,128,128,1,0.8004,20470.9,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,1,128,1,2.2133,57.83,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,8,128,1,2.3282,439.82,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,32,128,1,1.4421,2840.24,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,128,128,1,2.7071,6052.21,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,1,128,2,0.6689,191.37,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,8,128,2,0.7331,1396.85,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,32,128,2,0.8017,5109.34,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,128,128,2,1.0915,15010.03,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,1,128,2,1.9689,65.01,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,8,128,2,1.1528,888.25,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,32,128,2,1.2132,3376.28,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,128,128,2,2.4147,6785.12,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,1,128,2,0.3414,374.9,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,8,128,2,0.3639,2813.75,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,32,128,2,0.4546,9009.84,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,128,128,2,0.7801,21002.46,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,1,128,2,1.5876,80.62,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,8,128,2,1.5752,650.09,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,32,128,2,1.6118,2541.25,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,128,128,2,1.8857,8688.77,,,benchmarks/data/l40s-own/l40s-own-1p5b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,1,128,0,2.5578,50.04,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,8,128,0,2.6824,381.74,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,32,128,0,3.2566,1257.76,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,128,128,0,4.1931,3907.38,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,1,128,0,2.587,49.48,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,8,128,0,2.7339,374.55,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,32,128,0,3.3381,1227.04,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,128,128,0,4.2906,3818.58,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,1,128,0,0.93,137.63,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,8,128,0,0.9869,1037.57,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,32,128,0,1.2362,3313.4,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,128,128,0,2.5997,6302.38,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,1,128,0,1.4413,88.81,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,8,128,0,1.3639,750.81,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,32,128,0,2.5376,1614.12,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,128,128,0,3.3125,4946.18,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,1,128,1,2.5595,50.01,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,8,128,1,2.6953,379.93,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,32,128,1,3.277,1249.94,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,128,128,1,4.2253,3877.57,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,1,128,1,2.5894,49.43,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,8,128,1,2.7344,374.49,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,32,128,1,3.3345,1228.37,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,128,128,1,4.2846,3823.96,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,1,128,1,0.9314,137.43,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,8,128,1,0.991,1033.32,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,32,128,1,1.2333,3321.11,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,128,128,1,2.6042,6291.42,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,1,128,1,1.3184,97.09,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,8,128,1,1.4396,711.31,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,32,128,1,2.4971,1640.33,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,128,128,1,2.6178,6258.78,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,1,128,2,2.5617,49.97,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,8,128,2,2.6931,380.22,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,32,128,2,3.2789,1249.21,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,yes,128,128,2,4.2324,3871.05,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,1,128,2,2.5871,49.48,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,8,128,2,2.733,374.67,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,32,128,2,3.3455,1224.33,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct,none,no,128,128,2,4.3096,3801.77,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,1,128,2,0.9306,137.54,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,8,128,2,0.9877,1036.74,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,32,128,2,1.2295,3331.51,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,yes,128,128,2,2.6028,6294.78,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,1,128,2,2.1727,58.91,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,8,128,2,1.4151,723.64,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,32,128,2,1.5095,2713.46,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-09-21,NVIDIA L40S,vast.ai m:150627 h:640216 (Romania),,vllm,0.27.1,Qwen/Qwen2.5-7B-Instruct-AWQ,awq,no,128,128,2,3.3165,4940.21,,,benchmarks/data/l40s-own/l40s-own-7b.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,1,128,0,4.7495,26.95,3.607252,55.9,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,8,128,0,4.8547,210.93,0.460916,57.2,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,32,128,0,4.7842,856.16,0.113556,65.5,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,no,128,128,0,6.1795,2651.33,0.036669,62.4,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,1,128,0,5.9259,21.60,4.500183,33.5,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,8,128,0,5.5342,185.03,0.525431,34.9,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,32,128,0,5.5494,738.10,0.131720,40.5,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,no,128,128,0,5.5989,2926.28,0.033224,67.2,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,1,128,0,1.9176,66.75,1.456537,67.1,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,8,128,0,2.0577,497.65,0.195361,67.3,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,32,128,0,2.8731,1425.64,0.068196,67.3,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct,none,yes,128,128,0,4.5110,3632.00,0.026768,66.5,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,1,128,0,0.9918,129.06,0.753296,67.4,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,8,128,0,1.0486,976.51,0.099561,67.4,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,32,128,0,1.8228,2247.11,0.043265,65.9,benchmarks/data/t4-006.csv
+2026-08-21,Tesla T4,Google Colab,0.35,vllm,0.27.1,Qwen/Qwen2.5-1.5B-Instruct-AWQ,awq,yes,128,128,0,4.3580,3759.50,0.025860,65.9,benchmarks/data/t4-006.csv
