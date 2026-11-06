@@ -2,6 +2,8 @@
 
 **Measure what your AI inference actually costs.**
 
+**Try it in your browser:** [which GPU is cheapest at your answer time](https://qaisermehdi3-coder.github.io/qvunex/), measured on real rented GPUs.
+
 Most teams running AI in production know exactly one number: the monthly cloud
 bill. They can't tell you cost per endpoint, per feature, or per prediction. When
 the bill doubles, they can't say why.
