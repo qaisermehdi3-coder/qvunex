@@ -22,12 +22,17 @@
 #
 # The tests run in the background; this command then follows the report.
 # When it prints ALL DONE, download report-planb.txt and DESTROY the instance.
+# On your own machine it writes to ~/qvunex-planb (or QVUNEX_OUT if set).
 # It also writes corpus-rows.csv: the same numbers as rows for
 # benchmarks/corpus/served-runs.csv (host and source are left for you to fill).
 
 set -u
-OUT=/workspace/planb
-mkdir -p "$OUT"
+# Where the files go: QVUNEX_OUT if set, else /workspace/planb (vast.ai and
+# similar), else ~/qvunex-planb on a normal machine.
+OUT=${QVUNEX_OUT:-/workspace/planb}
+mkdir -p "$OUT" 2>/dev/null || OUT="$HOME/qvunex-planb"
+mkdir -p "$OUT" || { echo "cannot create an output folder; set QVUNEX_OUT"; exit 1; }
+export QVUNEX_OUT="$OUT"
 
 if [ "${PLANB_INNER:-}" != "1" ]; then
   curl -sL https://raw.githubusercontent.com/qaisermehdi3-coder/qvunex/main/planb.sh -o "$OUT/planb.sh"
@@ -44,7 +49,7 @@ OTOK=${4:-256}
 LEVELS=${5:-1 4 16 64}
 SECS=${6:-60}
 EXTRA=${7:-}
-PORT=8000
+PORT=${QVUNEX_PORT:-8000}
 REP=$OUT/report.txt
 : > "$REP"
 export HF_HOME=/workspace/hf
@@ -76,7 +81,13 @@ snapshot_download(sys.argv[1])
 PY
 say "download   $(python3 -c "print(round($(now)-$t))") s (not counted in start-up)"
 
-pkill -f "bin/vllm serve" 2>/dev/null
+# On a rented box (/workspace) clear leftovers from an earlier run. On your own
+# machine nothing else is stopped: the port must be free instead.
+[ "$OUT" = /workspace/planb ] && pkill -f "bin/vllm serve" 2>/dev/null && sleep 5
+if curl -s --noproxy "*" -o /dev/null "http://127.0.0.1:$PORT/" 2>/dev/null; then
+  say "PORT $PORT IS ALREADY IN USE. Stop that server or set QVUNEX_PORT to a free port, then run again."
+  exit 1
+fi
 t0=$(now)
 nohup vllm serve "$MODEL" --port $PORT $EXTRA > "$OUT/server.log" 2>&1 &
 SPID=$!
@@ -171,7 +182,8 @@ say "  The costs above assume the GPU is busy the whole time. A real server is"
 say "  not: if it serves requests 30% of the day, each request really costs about"
 say "  3.3x these numbers. Only your own traffic can show that share."
 say ""
-kill $SPID 2>/dev/null; sleep 5; pkill -f "bin/vllm serve" 2>/dev/null
+kill $SPID 2>/dev/null; sleep 5
+[ "$OUT" = /workspace/planb ] && pkill -f "bin/vllm serve" 2>/dev/null
 # CORPUS ROWS: the same numbers in the benchmarks/corpus/served-runs.csv format
 python3 - "$OUT" "$OUT/corpus-rows.csv" <<'PY' >> "$OUT/run.out" 2>&1
 import csv, re, sys
@@ -209,4 +221,9 @@ PY
 cp "$REP" /vllm-workspace/report-planb.txt 2>/dev/null
 cp "$OUT/corpus-rows.csv" /vllm-workspace/corpus-rows.csv 2>/dev/null
 tar czf /vllm-workspace/planb-files.tgz -C "$OUT" . 2>/dev/null
-say "ALL DONE. Download report-planb.txt, corpus-rows.csv and planb-files.tgz, then DESTROY the instance."
+[ -d /vllm-workspace ] || tar czf "$OUT/planb-files.tgz" -C "$OUT" --exclude=planb-files.tgz . 2>/dev/null
+say "Files: $REP, $OUT/corpus-rows.csv, planb-files.tgz (in /vllm-workspace if it exists, else in $OUT)"
+say "Add your numbers to the public corpus (optional): open"
+say "  https://github.com/qaisermehdi3-coder/qvunex/issues/new?template=add-gpu-numbers.yml"
+say "  and paste corpus-rows.csv. Fill in host and price source."
+say "ALL DONE. Download report-planb.txt, corpus-rows.csv and planb-files.tgz. On a rented GPU, DESTROY the instance."
