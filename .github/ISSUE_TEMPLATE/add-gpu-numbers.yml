@@ -1,0 +1,45 @@
+name: Add GPU numbers
+description: Add your planb.sh results (corpus-rows.csv) to the public served-runs corpus.
+title: "[corpus] GPU and model"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Run `planb.sh` on your GPU (one command, see benchmarks/corpus/README.md). When it prints ALL DONE it has written `corpus-rows.csv`. Paste it below. Rows are checked and added to `benchmarks/corpus/served-runs.csv` with your name as the source.
+  - type: textarea
+    id: rows
+    attributes:
+      label: corpus-rows.csv
+      description: Paste the whole file, header line included.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Where it ran
+      placeholder: "vast.ai machine 12345, RunPod, own server in a rack, ..."
+    validations:
+      required: true
+  - type: input
+    id: price
+    attributes:
+      label: Where the hourly price comes from
+      placeholder: "vast.ai listing price, AWS on-demand, own hardware amortised over 3 years, ..."
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: report-planb.txt (optional)
+      description: The printed report, so the rows can be checked against it.
+      render: text
+  - type: checkboxes
+    id: ok
+    attributes:
+      label: Confirm
+      options:
+        - label: These rows come from an unmodified planb.sh run and I have not edited the numbers.
+          required: true
+        - label: They may be published in this repository under its license (Apache-2.0), with my GitHub name as the source.
+          required: true
