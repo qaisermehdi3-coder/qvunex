@@ -22,14 +22,17 @@
 #
 # The tests run in the background; this command then follows the report.
 # When it prints ALL DONE, download report-planb.txt and DESTROY the instance.
-# On your own machine it writes to ~/qvunex-planb (or QVUNEX_OUT if set).
+# On your own machine it writes to ~/qvunex-planb (or QVUNEX_OUT if set) and
+# stops only the server it started.
 # It also writes corpus-rows.csv: the same numbers as rows for
 # benchmarks/corpus/served-runs.csv (host and source are left for you to fill).
 
 set -u
-# Where the files go: QVUNEX_OUT if set, else /workspace/planb (vast.ai and
-# similar), else ~/qvunex-planb on a normal machine.
-OUT=${QVUNEX_OUT:-/workspace/planb}
+# Where the files go: QVUNEX_OUT if set, else /workspace/planb when /workspace
+# already exists (vast.ai and similar), else ~/qvunex-planb.
+if [ -n "${QVUNEX_OUT:-}" ]; then OUT=$QVUNEX_OUT
+elif [ -d /workspace ] && [ -w /workspace ]; then OUT=/workspace/planb
+else OUT="$HOME/qvunex-planb"; fi
 mkdir -p "$OUT" 2>/dev/null || OUT="$HOME/qvunex-planb"
 mkdir -p "$OUT" || { echo "cannot create an output folder; set QVUNEX_OUT"; exit 1; }
 export QVUNEX_OUT="$OUT"
@@ -81,9 +84,10 @@ snapshot_download(sys.argv[1])
 PY
 say "download   $(python3 -c "print(round($(now)-$t))") s (not counted in start-up)"
 
-# On a rented box (/workspace) clear leftovers from an earlier run. On your own
-# machine nothing else is stopped: the port must be free instead.
-[ "$OUT" = /workspace/planb ] && pkill -f "bin/vllm serve" 2>/dev/null && sleep 5
+# Inside the official vLLM image (/vllm-workspace, e.g. a rented box) clear
+# leftovers from an earlier run. Anywhere else nothing is stopped: the port
+# must be free instead.
+[ -d /vllm-workspace ] && pkill -f "bin/vllm serve" 2>/dev/null && sleep 5
 if curl -s --noproxy "*" -o /dev/null "http://127.0.0.1:$PORT/" 2>/dev/null; then
   say "PORT $PORT IS ALREADY IN USE. Stop that server or set QVUNEX_PORT to a free port, then run again."
   exit 1
@@ -183,7 +187,7 @@ say "  not: if it serves requests 30% of the day, each request really costs abou
 say "  3.3x these numbers. Only your own traffic can show that share."
 say ""
 kill $SPID 2>/dev/null; sleep 5
-[ "$OUT" = /workspace/planb ] && pkill -f "bin/vllm serve" 2>/dev/null
+[ -d /vllm-workspace ] && pkill -f "bin/vllm serve" 2>/dev/null
 # CORPUS ROWS: the same numbers in the benchmarks/corpus/served-runs.csv format
 python3 - "$OUT" "$OUT/corpus-rows.csv" <<'PY' >> "$OUT/run.out" 2>&1
 import csv, re, sys
