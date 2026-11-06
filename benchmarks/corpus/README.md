@@ -56,3 +56,15 @@ Since 4 Nov 2026 `planb.sh` writes them for you as `corpus-rows.csv` (fill in `h
 `usd_per_1m_output_tokens` is filled only where the hourly price was recorded (T4 at $0.35, RTX 3090 at $0.414); for L4 and L40S it is empty rather than guessed. Read the caveats in `../data/README.md` first: eager timings moved up to 50% between hosts, CUDA-graph fp16 timings stayed within 1.3%.
 
 Columns: `run_date`, `gpu`, `host`, `usd_per_hour`, `engine`, `engine_version`, `model`, `quantization`, `cuda_graphs`, `batch`, `output_tokens_each`, `repeat`, `seconds_total`, `output_tok_per_s`, `usd_per_1m_output_tokens`, `board_watts` (T4 only), `source`.
+
+## Add your GPU's numbers
+
+One command on a Linux machine with an NVIDIA GPU, Python with `vllm`, `openai` and `huggingface_hub` installed, and about 15 GB free for the model (or a rented GPU with the official vLLM image):
+
+```bash
+curl -sL https://raw.githubusercontent.com/qaisermehdi3-coder/qvunex/main/planb.sh | bash -s -- YOUR_PRICE_PER_HOUR
+```
+
+It serves Qwen2.5-7B-Instruct with your vLLM on port 8000 (set `QVUNEX_PORT` to change it; it stops if the port is already in use), sends 1, 4, 16 and 64 requests at once for 60 s each, checks every count against vLLM's own /metrics, and writes `corpus-rows.csv` to ~/qvunex-planb (or /workspace/planb on a rented box, or `QVUNEX_OUT`). It uses the whole GPU for about 10 minutes, so don't run it on a GPU that is serving users. On your own machine it stops only the server it started.
+
+Then open an [Add GPU numbers](https://github.com/qaisermehdi3-coder/qvunex/issues/new?template=add-gpu-numbers.yml) issue and paste the file. Rows are checked and added with your name as the source.
