@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qvunex: which GPU is cheapest at your answer time?</title>
+<meta name="description" content="Measured vLLM cost per 1M output tokens on real rented GPUs, at the answer time you need. Every number measured, raw data public.">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1c1a;--muted:#6b675f;--line:#e4e0d6;--card:#ffffff;--accent:#1f6f50;--warn:#9a5b00}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#ecebe6;--muted:#a19d93;--line:#2f2e2a;--card:#1f1e1b;--accent:#5cc39a;--warn:#e0a24a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.6rem;line-height:1.25;margin:0 0 6px}
+.sub{color:var(--muted);margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:0 0 16px}
+label{display:block;font-weight:600;margin:0 0 6px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+input[type=range]{flex:1;min-width:180px}
+.big{font-size:1.4rem;font-weight:700;min-width:5.5em}
+select,input[type=number]{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+input[type=number]{width:7em}
+.result{border-left:4px solid var(--accent);padding:10px 12px;margin:10px 0;background:var(--bg);border-radius:6px}
+.result.no{border-left-color:var(--line);color:var(--muted)}
+.price{font-size:1.3rem;font-weight:700}
+.verdict{font-weight:700;color:var(--accent);margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th,td{text-align:right;padding:5px 3px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+.scroll{overflow-x:auto}
+.ok td{font-weight:600}
+.note{color:var(--muted);font-size:.9rem}
+a{color:var(--accent)}
+.prices{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center}
+</style>
+</head>
+<body>
+<main>
+<h1>Which GPU is cheapest at your answer time?</h1>
+<p class="sub">Measured, not estimated: vLLM serving real requests on rented GPUs, cost per 1M output tokens at the load that still meets your answer-time target. By <a href="https://github.com/qaisermehdi3-coder/qvunex">Qvunex</a>.</p>
+
+<div class="card">
+  <label for="t">Answers must finish within</label>
+  <div class="row">
+    <input id="t" type="range" min="1" max="30" step="0.5" value="8">
+    <span class="big"><span id="tv">8</span> s</span>
+    <select id="pct" aria-label="percentile"><option value="p95">for 95% of requests (p95)</option><option value="p50">for half of requests (p50)</option></select>
+  </div>
+  <div id="out"></div>
+</div>
+
+<div class="card">
+  <label>Your hourly price per GPU (change to your own)</label>
+  <div class="prices" id="prices"></div>
+  <p class="note">Cost scales with price: a card at twice the price costs twice as much per token at the same load.</p>
+</div>
+
+<div class="card">
+  <label>Every measured point</label>
+  <div class="scroll"><table id="tbl"><thead><tr><th>GPU</th><th>at once</th><th>p50 s</th><th>p95 s</th><th>$ / 1M out</th></tr></thead><tbody></tbody></table></div>
+  <p class="note">Bold rows meet your target.</p>
+</div>
+
+<div class="card note">
+  <p><b>What this is.</b> Qwen2.5-7B-Instruct, vLLM 0.27.1 with default flags, prompts of about 512 tokens and 256-token answers, 60 s at each load, one run per load. Cost = GPU price x the measured window. Request and token counts were checked against vLLM's own /metrics counters and matched exactly.</p>
+  <p><b>What it is not.</b> Only measured points are used: nothing is interpolated between loads or carried over to other models, prompt lengths or GPUs. Costs assume the GPU is busy the whole time; idle hours in a real day raise them, and only your own traffic shows by how much.</p>
+  <p>Raw data, server logs and method: <a href="https://github.com/qaisermehdi3-coder/qvunex/tree/main/benchmarks/corpus">benchmarks/corpus</a>. Same answer from the command line: <code>python3 cheapest.py --p95 8</code>.</p>
+  <p><b>Want this for your own model and settings?</b> Send your model, vLLM flags and typical prompt and answer length, and I run a short mini-report on a rented GPU for free. Full report: paid work. <a href="mailto:qvunexaudit@gmail.com">qvunexaudit@gmail.com</a></p>
+</div>
+</main>
+<script>
+const ROWS = [{"run_date": "2026-10-27", "gpu": "NVIDIA GeForce RTX 3090", "usd_per_hour": "0.259", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "1", "output_tok_per_s": "40", "latency_p50_s": "6.27", "latency_p95_s": "7.10", "usd_per_1m_output_tokens": "1.809", "source": "benchmarks/data/planb-3090-2026-10-27"}, {"run_date": "2026-10-27", "gpu": "NVIDIA GeForce RTX 3090", "usd_per_hour": "0.259", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "4", "output_tok_per_s": "147", "latency_p50_s": "6.82", "latency_p95_s": "7.19", "usd_per_1m_output_tokens": "0.490", "source": "benchmarks/data/planb-3090-2026-10-27"}, {"run_date": "2026-10-27", "gpu": "NVIDIA GeForce RTX 3090", "usd_per_hour": "0.259", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "16", "output_tok_per_s": "442", "latency_p50_s": "9.06", "latency_p95_s": "9.54", "usd_per_1m_output_tokens": "0.163", "source": "benchmarks/data/planb-3090-2026-10-27"}, {"run_date": "2026-10-27", "gpu": "NVIDIA GeForce RTX 3090", "usd_per_hour": "0.259", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "64", "output_tok_per_s": "878", "latency_p50_s": "17.87", "latency_p95_s": "23.67", "usd_per_1m_output_tokens": "0.082", "source": "benchmarks/data/planb-3090-2026-10-27"}, {"run_date": "2026-10-29", "gpu": "NVIDIA A100 80GB PCIe", "usd_per_hour": "1.017", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "1", "output_tok_per_s": "89", "latency_p50_s": "2.78", "latency_p95_s": "2.78", "usd_per_1m_output_tokens": "3.161", "source": "benchmarks/data/planb-a100-2026-10-29"}, {"run_date": "2026-10-29", "gpu": "NVIDIA A100 80GB PCIe", "usd_per_hour": "1.017", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "4", "output_tok_per_s": "352", "latency_p50_s": "2.85", "latency_p95_s": "2.85", "usd_per_1m_output_tokens": "0.803", "source": "benchmarks/data/planb-a100-2026-10-29"}, {"run_date": "2026-10-29", "gpu": "NVIDIA A100 80GB PCIe", "usd_per_hour": "1.017", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "16", "output_tok_per_s": "1164", "latency_p50_s": "3.45", "latency_p95_s": "3.78", "usd_per_1m_output_tokens": "0.243", "source": "benchmarks/data/planb-a100-2026-10-29"}, {"run_date": "2026-10-29", "gpu": "NVIDIA A100 80GB PCIe", "usd_per_hour": "1.017", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "64", "output_tok_per_s": "2675", "latency_p50_s": "5.98", "latency_p95_s": "7.11", "usd_per_1m_output_tokens": "0.106", "source": "benchmarks/data/planb-a100-2026-10-29"}, {"run_date": "2026-10-29", "gpu": "NVIDIA A100 80GB PCIe", "usd_per_hour": "1.017", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "256", "output_tok_per_s": "3433", "latency_p50_s": "18.71", "latency_p95_s": "26.47", "usd_per_1m_output_tokens": "0.082", "source": "benchmarks/data/planb-a100-2026-10-29"}, {"run_date": "2026-11-07", "gpu": "NVIDIA GeForce RTX 5090", "usd_per_hour": "0.522", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "1", "output_tok_per_s": "101", "latency_p50_s": "2.50", "latency_p95_s": "2.51", "usd_per_1m_output_tokens": "1.441", "source": "benchmarks/data/planb-5090-2026-11-07"}, {"run_date": "2026-11-07", "gpu": "NVIDIA GeForce RTX 5090", "usd_per_hour": "0.522", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "4", "output_tok_per_s": "379", "latency_p50_s": "2.67", "latency_p95_s": "2.67", "usd_per_1m_output_tokens": "0.382", "source": "benchmarks/data/planb-5090-2026-11-07"}, {"run_date": "2026-11-07", "gpu": "NVIDIA GeForce RTX 5090", "usd_per_hour": "0.522", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "16", "output_tok_per_s": "1208", "latency_p50_s": "3.36", "latency_p95_s": "3.50", "usd_per_1m_output_tokens": "0.120", "source": "benchmarks/data/planb-5090-2026-11-07"}, {"run_date": "2026-11-07", "gpu": "NVIDIA GeForce RTX 5090", "usd_per_hour": "0.522", "engine_version": "0.27.1", "model": "Qwen/Qwen2.5-7B-Instruct", "prompt_tokens_approx": "512", "output_tokens": "256", "concurrency": "64", "output_tok_per_s": "2901", "latency_p50_s": "5.41", "latency_p95_s": "6.18", "usd_per_1m_output_tokens": "0.050", "source": "benchmarks/data/planb-5090-2026-11-07"}]
+;
+const short = g => g.replace("NVIDIA ","").replace("GeForce ","");
+const gpus = [...new Set(ROWS.map(r => r.gpu))];
+const measured = {}; ROWS.forEach(r => measured[r.gpu] = +r.usd_per_hour);
+const price = {...measured};
+const pr = document.getElementById("prices");
+gpus.forEach(g => {
+  const l = document.createElement("span"); l.textContent = short(g) + " (measured at $" + measured[g] + "/h)";
+  const i = document.createElement("input"); i.type = "number"; i.step = "0.01"; i.min = "0.01"; i.value = measured[g];
+  i.setAttribute("aria-label", "price per hour for " + short(g));
+  i.oninput = () => { const v = parseFloat(i.value); if (v > 0) { price[g] = v; draw(); } };
+  pr.append(l, i);
+});
+const cost = r => +r.usd_per_1m_output_tokens * price[r.gpu] / +r.usd_per_hour;
+const fmt = x => "$" + (x < 1 ? x.toFixed(3) : x.toFixed(2));
+function draw() {
+  const t = parseFloat(document.getElementById("t").value);
+  document.getElementById("tv").textContent = t;
+  const key = document.getElementById("pct").value === "p95" ? "latency_p95_s" : "latency_p50_s";
+  const fits = ROWS.filter(r => +r[key] <= t);
+  const best = {};
+  fits.forEach(r => { if (!best[r.gpu] || cost(r) < cost(best[r.gpu])) best[r.gpu] = r; });
+  const ranked = Object.values(best).sort((a, b) => cost(a) - cost(b));
+  let h = "";
+  ranked.forEach(r => {
+    h += '<div class="result"><div class="price">' + fmt(cost(r)) + ' per 1M output tokens</div>' +
+      '<div>' + short(r.gpu) + ' at $' + price[r.gpu] + '/h, ' + r.concurrency + ' requests at once</div>' +
+      '<div class="note">p50 ' + r.latency_p50_s + ' s, p95 ' + r.latency_p95_s + ' s, ' + Number(r.output_tok_per_s).toLocaleString() + ' output tokens/s</div></div>';
+  });
+  gpus.filter(g => !best[g]).forEach(g => {
+    h += '<div class="result no">' + short(g) + ': never this fast at any measured load</div>';
+  });
+  if (ranked.length >= 2) {
+    const ratio = cost(ranked[1]) / cost(ranked[0]);
+    h += '<div class="verdict">' + (ratio < 1.05 ? "About the same cost per token at this target."
+      : short(ranked[0].gpu) + " is " + ratio.toFixed(1) + "x cheaper per token than " + short(ranked[1].gpu) + " at this target.") + '</div>';
+  } else if (ranked.length === 0) {
+    h = '<div class="result no">No measured setup is this fast.</div>';
+  }
+  document.getElementById("out").innerHTML = h;
+  const tb = document.querySelector("#tbl tbody"); tb.innerHTML = "";
+  ROWS.forEach(r => {
+    const tr = document.createElement("tr"); if (+r[key] <= t) tr.className = "ok";
+    tr.innerHTML = "<td>" + short(r.gpu) + "</td><td>" + r.concurrency +
+      "</td><td>" + r.latency_p50_s + "</td><td>" + r.latency_p95_s + "</td><td>" + fmt(cost(r)) + "</td>";
+    tb.append(tr);
+  });
+}
+document.getElementById("t").oninput = draw;
+document.getElementById("pct").onchange = draw;
+draw();
+</script>
+</body>
+</html>
