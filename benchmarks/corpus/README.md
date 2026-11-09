@@ -74,7 +74,7 @@ after the level; its count equals `requests_done` on every row),
 New rows come from new `planb.sh` runs, including client mini-reports when the
 client agrees to publish.
 
-Since 4 Nov 2026 `planb.sh` writes them for you as `corpus-rows.csv` (fill in `host` and `source`). Since 9 Nov 2026 it also writes `ttft_mean_s` (empty when the server reports no histogram: unknown, not zero). For older runs it comes from the run's `before_N.txt` and `after_N.txt` with `python3 ttft_from_metrics.py before_64.txt after_64.txt`.
+Since 4 Nov 2026 `planb.sh` writes them for you as `corpus-rows.csv` (fill in `host` and `source`). Since 8 Nov 2026 it also writes `ttft_mean_s` (empty when the server reports no histogram: unknown, not zero). For older runs it comes from the run's `before_N.txt` and `after_N.txt` with `python3 ttft_from_metrics.py before_64.txt after_64.txt`.
 
 ## `offline-batch.csv`: the earlier sweeps, a different method
 
