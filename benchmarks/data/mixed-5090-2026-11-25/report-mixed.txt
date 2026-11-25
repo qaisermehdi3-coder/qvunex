@@ -1,0 +1,85 @@
+QVUNEX - MIXED PROMPT LENGTHS ON A RENTED GPU
+date_utc   2026-11-25T15:37:22Z
+gpu        NVIDIA GeForce RTX 5090, 32607 MiB, 580.178.04
+vllm       0.27.1
+cpu        AMD Ryzen 7 7800X3D 8-Core Processor, nproc 16
+model      Qwen/Qwen2.5-7B-Instruct
+load       16 short requests at once (prompt ~512 tokens); in the mixed phase also
+           one long request (prompt ~12000 tokens) every 10s; answers 256 tokens
+           burst phase: 4 long requests together every 10s
+           (ignore_eos), streamed; 60s per phase
+configs    default;--max-num-batched-tokens 16384
+price      $0.545 per hour for this GPU
+
+meter      qvunex_single.py md5 5b49a0fa
+script     mixed.sh md5 45143146
+download   201 s (not counted in start-up)
+
+CONFIG 1: default
+  budget     max_num_batched_tokens 2048, chunked prefill on, max_num_seqs 256 (from vLLM's own EngineArgs for these flags, not from the server log)
+  start-up   131.8 s
+  server     GPU KV cache size: 228,576 tokens
+  short only: window 61.6 s, 1,196 output tok/s, $0.127 per 1M output tokens
+    short answers   288 done, 0 errors; whole answer p50 3.36 s / p95 3.90 s
+                    first token p50 0.330 s / p95 0.745 s
+                    biggest pause inside an answer p50 0.114 s / p95 0.133 s / max 0.134 s
+    meter vs server   requests                    288            288             +0
+    meter vs server   prompt tokens           156,636        156,636             +0
+    meter vs server   output tokens            73,728         73,728             +0
+    server first token  mean 0.283 s over 288 requests, short and long together (vLLM's own histogram)
+  mixed: window 60.8 s, 1,036 output tok/s, $0.146 per 1M output tokens
+    short answers   240 done, 0 errors; whole answer p50 4.03 s / p95 4.72 s
+                    first token p50 0.333 s / p95 0.483 s
+                    biggest pause inside an answer p50 0.123 s / p95 0.180 s / max 0.181 s
+    long prompts    6 done, 0 errors; first token p50 0.992 s / max 0.997 s; whole answer p50 5.04 s
+    meter vs server   requests                    246            246             +0
+    meter vs server   prompt tokens           202,705        202,705             +0
+    meter vs server   output tokens            62,976         62,976             +0
+    server first token  mean 0.304 s over 246 requests, short and long together (vLLM's own histogram)
+  burst (4 long at once): window 64.1 s, 787 output tok/s, $0.192 per 1M output tokens
+    short answers   173 done, 0 errors; whole answer p50 7.29 s / p95 7.70 s
+                    first token p50 0.338 s / p95 0.618 s
+                    biggest pause inside an answer p50 0.182 s / p95 0.185 s / max 0.187 s
+    long prompts    24 done, 0 errors; first token p50 2.993 s / max 4.218 s; whole answer p50 7.98 s
+    meter vs server   requests                    197            197             +0
+    meter vs server   prompt tokens           382,859        382,859             +0
+    meter vs server   output tokens            50,432         50,432             +0
+    server first token  mean 0.630 s over 197 requests, short and long together (vLLM's own histogram)
+
+CONFIG 2: --max-num-batched-tokens 16384
+  budget     max_num_batched_tokens 16384, chunked prefill on, max_num_seqs 256 (from vLLM's own EngineArgs for these flags, not from the server log)
+  start-up   47.3 s
+  server     Chunked prefill is enabled with max_num_batched_tokens=16384.
+  server     GPU KV cache size: 225,280 tokens
+  short only: window 61.8 s, 1,194 output tok/s, $0.127 per 1M output tokens
+    short answers   288 done, 0 errors; whole answer p50 3.38 s / p95 3.74 s
+                    first token p50 0.568 s / p95 0.923 s
+                    biggest pause inside an answer p50 0.013 s / p95 0.526 s / max 0.532 s
+    meter vs server   requests                    288            288             +0
+    meter vs server   prompt tokens           156,588        156,588             +0
+    meter vs server   output tokens            73,728         73,728             +0
+    server first token  mean 0.538 s over 288 requests, short and long together (vLLM's own histogram)
+  mixed: window 61.5 s, 1,025 output tok/s, $0.148 per 1M output tokens
+    short answers   240 done, 0 errors; whole answer p50 3.94 s / p95 4.94 s
+                    first token p50 0.579 s / p95 0.750 s
+                    biggest pause inside an answer p50 0.016 s / p95 0.968 s / max 0.969 s
+    long prompts    6 done, 0 errors; first token p50 1.003 s / max 1.006 s; whole answer p50 5.08 s
+    meter vs server   requests                    246            246             +0
+    meter vs server   prompt tokens           202,682        202,682             +0
+    meter vs server   output tokens            62,976         62,976             +0
+    server first token  mean 0.525 s over 246 requests, short and long together (vLLM's own histogram)
+  burst (4 long at once): window 62.8 s, 750 output tok/s, $0.202 per 1M output tokens
+    short answers   160 done, 0 errors; whole answer p50 7.56 s / p95 7.96 s
+                    first token p50 0.592 s / p95 0.755 s
+                    biggest pause inside an answer p50 1.288 s / p95 1.329 s / max 1.331 s
+    long prompts    24 done, 0 errors; first token p50 3.271 s / max 4.400 s; whole answer p50 7.99 s
+    meter vs server   requests                    184            184             +0
+    meter vs server   prompt tokens           375,791        375,791             +0
+    meter vs server   output tokens            47,104         47,104             +0
+    server first token  mean 0.831 s over 184 requests, short and long together (vLLM's own histogram)
+
+WHAT THIS DOES NOT TELL YOU
+  One run per phase, synthetic prompts, long prompts at a fixed interval.
+  Real traffic mixes many lengths and arrives in bursts. Costs assume the GPU
+  is busy the whole window.
+
