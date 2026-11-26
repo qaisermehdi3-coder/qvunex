@@ -36,16 +36,20 @@ Control pair: about 72 tokens per second each in all three runs. 0 errors. Meter
 
 The slowdown from the issue happens on this card too: A dropped from about 60 to about 1 token per second for the 24 s it took to read B.
 
-Turning prefix caching off did not remove it (run 2 was slightly worse).
+Turning prefix caching off did not remove it (run 2 was slightly worse; the [26 Nov sweep](../lpsweep-5090-2026-11-26) found why, see the correction below).
 
 The numbers fit a simple count. While B is read, each engine step holds one chunk of B's prompt, up to the token budget, plus one token for A. So A gets about one token per step:
 
-- Budget 4096: B's ~75,000 tokens take ~18 steps in ~24 s, about 1.3 s per step, so A gets about 1 token per second
+- Budget 4096: B's ~75,000 tokens take ~18 steps in ~24 s, about 1.3 s per step, so A gets about 1 token per second (this fits run 2; see the correction below for run 1)
 - Budget 1024: ~73 steps in ~24 s, about 0.33 s per step, so A gets about 3 tokens per second
 
 Run 3 was chosen from this count after runs 1 and 2: it predicted roughly 3 to 4 tokens per second for A with a 1024 budget. The run gave 3.23.
 
 The smaller budget cut A's longest pause from 1.30 to 0.42 s and tripled its speed while B was read, at the cost of about 4 s more before each long prompt's first token (+19% for A, +8% for B).
+
+## Correction (27 Nov 2026)
+
+The count above fits run 2 (prefix caching off) but not run 1. With prefix caching on, this hybrid model runs Mamba cache "align" mode with an attention block of 1,568 tokens, and vLLM 0.27.1's scheduler cuts each prefill chunk to end on a multiple of 1,568. So in run 1 a 4096 budget most likely gave 3,136-token chunks: about 24 steps of about 1.0 s, which fits A's 1.08 tokens per second, and is why run 1 was faster than run 2 (0.73). The [26 Nov sweep](../lpsweep-5090-2026-11-26) tested this on six settings: one token per step held in all six, and with prefix caching on the chunk sizes matched the 1,568 rule, apart from a few chunks at 4096 that split in two for a reason not yet known.
 
 ## Limits
 
